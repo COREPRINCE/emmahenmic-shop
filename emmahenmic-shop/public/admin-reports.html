@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Reports | Emmahenmic</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@400;500;700&display=swap">
+<style>
+  :root { --brown:#3B2318; --gold:#F2A900; --bg:#FFFDF8; --line:#EADFCE; --muted:#6B5648; --red:#B3261E; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:"DM Sans",Arial,sans-serif; background:var(--bg); color:var(--brown); }
+  header { display:flex; justify-content:space-between; align-items:center; padding:16px 20px; border-bottom:1px solid var(--line); }
+  header a { color:var(--brown); text-decoration:none; font-weight:500; }
+  .logo { font-family:"DM Serif Display",Georgia,serif; font-size:24px; }
+  main { max-width:1000px; margin:0 auto; padding:24px 20px 60px; }
+  h1,h2 { font-family:"DM Serif Display",Georgia,serif; font-weight:400; margin:0; }
+  h1 { font-size:34px; } h2 { font-size:20px; margin-bottom:12px; }
+  .muted { color:var(--muted); font-size:14px; }
+  .top { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; flex-wrap:wrap; margin-bottom:16px; }
+  .btn { background:none; color:var(--brown); border:2px solid var(--brown); border-radius:999px; padding:9px 20px; font:inherit; font-weight:700; cursor:pointer; margin-left:6px; }
+  .chips { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:12px; }
+  .chip { border:1.5px solid var(--line); background:#fff; color:var(--brown); border-radius:999px; padding:8px 18px; font:inherit; cursor:pointer; }
+  .chip.on { background:var(--brown); color:#fff; border-color:var(--brown); }
+  .dates { display:none; gap:10px; flex-wrap:wrap; align-items:end; margin-bottom:12px; }
+  .dates label { font-size:13px; color:var(--muted); display:block; margin-bottom:4px; }
+  .dates input { padding:10px 12px; border:1.5px solid var(--line); border-radius:10px; font:inherit; background:#fff; color:var(--brown); }
+  .stats { display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:14px; margin-bottom:16px; }
+  .card { background:#fff; border:1px solid var(--line); border-radius:14px; padding:18px; margin-bottom:16px; }
+  .stat b { display:block; font-size:28px; font-family:"DM Serif Display",Georgia,serif; font-weight:400; margin-top:4px; }
+  .two { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+  @media (max-width:860px) { .two { grid-template-columns:1fr; } }
+  .chart { display:flex; align-items:flex-end; gap:4px; height:200px; overflow-x:auto; padding-top:8px; }
+  .col { flex:1 0 18px; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; height:100%; }
+  .bar { width:100%; background:#F0C96A; border-radius:6px 6px 0 0; min-height:3px; }
+  .col small { margin-top:6px; color:var(--muted); font-size:11px; white-space:nowrap; }
+  .row { display:flex; justify-content:space-between; gap:10px; padding:9px 0; border-bottom:1px solid var(--line); }
+  .row:last-child { border-bottom:0; }
+  .msg { min-height:20px; font-weight:700; color:var(--red); margin:8px 0; }
+  @media print {
+    .ehm-side, .ehm-top, .ehm-shade, header, .noprint { display:none !important; }
+    body.ehm-nav { margin-left:0 !important; padding-top:0 !important; }
+    body { background:#fff; } .card { break-inside:avoid; }
+  }
+</style>
+</head>
+<body>
+<header><span class="logo">Emmahenmic</span><a href="admin.html">Dashboard</a></header>
+<main>
+  <div class="top">
+    <div><h1>Reports</h1><div class="muted" id="period"></div></div>
+    <div class="noprint"><button class="btn" id="csv" type="button">Export to Excel</button><button class="btn" id="pdf" type="button">Export PDF</button></div>
+  </div>
+  <div class="chips noprint" id="chips"></div>
+  <div class="dates noprint" id="dates">
+    <div><label for="from">From</label><input id="from" type="date"></div>
+    <div><label for="to">To</label><input id="to" type="date"></div>
+    <button class="btn" id="go" type="button" style="margin:0">Show</button>
+  </div>
+  <div class="msg" id="msg" role="alert"></div>
+
+  <div class="stats" id="stats"></div>
+  <section class="card"><h2 id="chartTitle">Sales by day</h2><div class="chart" id="chart" role="img"></div></section>
+  <div class="two">
+    <section class="card"><h2>Best sellers</h2><div id="best"></div></section>
+    <section class="card"><h2>Sales by area</h2><div id="area"></div></section>
+  </div>
+  <div class="muted">Revenue counts payments you confirmed, on orders that were not cancelled. Days follow Lagos time.</div>
+</main>
+<script>
+  const token = localStorage.getItem('ehm_token');
+  const auth = { Authorization: 'Bearer ' + token };
+  const $ = (id) => document.getElementById(id);
+  const naira = (n) => '₦' + Number(n).toLocaleString('en-NG');
+  const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; };
+  const RANGES = [['today', 'Today'], ['7d', '7 days'], ['month', 'This month'], ['custom', 'Custom dates']];
+  let range = '7d', last = null, reqId = 0;
+
+  function drawChips() {
+    $('chips').innerHTML = '';
+    RANGES.forEach(([k, label]) => {
+      const b = el('button', 'chip' + (range === k ? ' on' : ''), label); b.type = 'button';
+      b.onclick = () => { range = k; drawChips(); $('dates').style.display = k === 'custom' ? 'flex' : 'none'; if (k !== 'custom') load(); };
+      $('chips').appendChild(b);
+    });
+  }
+  const label = (s, monthly) => monthly ? s : new Date(s + 'T00:00:00Z').toLocaleDateString('en-NG', { day: 'numeric', month: 'short', timeZone: 'UTC' });
+
+  async function load() {
+    const mine = ++reqId;
+    let url = '/api/admin/reports?range=' + range;
+    if (range === 'custom') url += '&from=' + encodeURIComponent($('from').value) + '&to=' + encodeURIComponent($('to').value);
+    const res = await fetch(url, { headers: auth });
+    const d = await res.json().catch(() => ({}));
+    if (mine !== reqId) return;
+    if (!res.ok) { $('msg').textContent = d.error || 'Could not load the report'; return; }
+    $('msg').textContent = ''; last = d;
+    $('period').textContent = d.from === d.to ? d.from : d.from + ' to ' + d.to;
+    $('stats').innerHTML = '';
+    [['Revenue', naira(d.revenue)], ['Orders placed', d.orders], ['Average paid order', naira(d.average)], ['New customers', d.customers]].forEach(([l, v]) => {
+      const c = el('div', 'card stat'); c.append(el('span', 'muted', l), el('b', '', String(v))); $('stats').appendChild(c);
+    });
+    $('chartTitle').textContent = d.monthly ? 'Sales by month' : 'Sales by day';
+    const chart = $('chart'); chart.innerHTML = '';
+    chart.setAttribute('aria-label', 'Sales: ' + d.by_day.map(x => x.label + ' ' + naira(x.revenue)).join(', '));
+    const max = Math.max(...d.by_day.map(x => x.revenue), 1);
+    d.by_day.forEach(x => {
+      const col = el('div', 'col'); col.title = x.label + ': ' + naira(x.revenue);
+      const bar = el('div', 'bar'); bar.style.height = Math.max(x.revenue / max * 160, 3) + 'px';
+      col.append(bar); if (d.by_day.length <= 31) col.appendChild(el('small', '', label(x.label, d.monthly))); chart.appendChild(col);
+    });
+    $('best').innerHTML = ''; $('area').innerHTML = '';
+    if (!d.best_sellers.length) $('best').appendChild(el('div', 'muted', 'No sales in this period.'));
+    d.best_sellers.forEach(p => { const r = el('div', 'row'); r.append(el('span', '', p.name), el('b', '', p.qty + ' ' + p.unit + (p.qty === 1 ? '' : 's'))); $('best').appendChild(r); });
+    if (!d.by_area.length) $('area').appendChild(el('div', 'muted', 'No sales in this period.'));
+    d.by_area.forEach(a => { const r = el('div', 'row'); r.append(el('span', '', a.area + ' (' + a.orders + ')'), el('b', '', naira(a.revenue))); $('area').appendChild(r); });
+  }
+
+  $('go').onclick = load;
+  $('pdf').onclick = () => window.print();
+  $('csv').onclick = () => {
+    if (!last) return;
+    const q = (v) => '"' + String(v).replace(/"/g, '""') + '"';
+    const lines = [['Emmahenmic report', last.from + ' to ' + last.to], [], ['Revenue', last.revenue], ['Orders placed', last.orders], ['Paid orders', last.paid_orders], ['Average paid order', last.average], ['New customers', last.customers], [],
+      [last.monthly ? 'Month' : 'Day', 'Revenue'], ...last.by_day.map(x => [x.label, x.revenue]), [], ['Best seller', 'Quantity', 'Value'], ...last.best_sellers.map(p => [p.name + ' (' + p.unit + ')', p.qty, p.value]), [], ['Area', 'Orders', 'Revenue'], ...last.by_area.map(a => [a.area, a.orders, a.revenue])];
+    const csv = '\ufeff' + lines.map(r => r.map(q).join(',')).join('\r\n');
+    const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+    a.download = 'emmahenmic-report-' + last.from + '-to-' + last.to + '.csv'; document.body.appendChild(a); a.click(); a.remove();
+  };
+
+  (async () => {
+    if (!token) { location.href = '/login.html'; return; }
+    const me = await fetch('/api/me', { headers: auth }); const m = await me.json();
+    if (!me.ok || m.role !== 'owner') { location.href = me.ok && m.role === 'staff' ? '/admin.html' : '/'; return; }
+    drawChips(); load();
+  })();
+</script>
+<script src="admin-nav.js"></script>
+</body>
+</html>

@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Stock | Emmahenmic</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@400;500;700&display=swap">
+<style>
+  :root { --brown:#3B2318; --gold:#F2A900; --bg:#FFFDF8; --line:#EADFCE; --muted:#6B5648; --red:#B3261E; --green:#1E7B3A; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:"DM Sans",Arial,sans-serif; background:var(--bg); color:var(--brown); }
+  header { display:flex; justify-content:space-between; align-items:center; padding:16px 20px; border-bottom:1px solid var(--line); }
+  header a { color:var(--brown); text-decoration:none; font-weight:500; }
+  .logo { font-family:"DM Serif Display",Georgia,serif; font-size:24px; }
+  main { max-width:760px; margin:0 auto; padding:24px 20px 60px; }
+  h1 { font-family:"DM Serif Display",Georgia,serif; font-weight:400; font-size:34px; margin:0 0 6px; }
+  .hint { color:var(--muted); font-size:14px; }
+  .bar { display:flex; gap:12px; align-items:center; flex-wrap:wrap; margin:14px 0; }
+  input.s { flex:1; min-width:200px; padding:12px 14px; border:1.5px solid var(--line); border-radius:10px; font:inherit; background:#fff; color:var(--brown); }
+  input.s:focus, input.n:focus { outline:3px solid var(--gold); outline-offset:1px; }
+  label.sw { display:flex; gap:8px; align-items:center; font-weight:500; cursor:pointer; }
+  label.sw input { width:20px; height:20px; accent-color:var(--brown); }
+  .item { display:flex; gap:12px; align-items:center; justify-content:space-between; flex-wrap:wrap; background:#fff; border:1px solid var(--line); border-radius:12px; padding:12px 14px; margin-bottom:8px; }
+  .item.low { border-color:var(--red); background:#FFF6F5; }
+  .item .l { min-width:0; flex:1 1 200px; }
+  input.n { width:100px; padding:10px 12px; border:1.5px solid var(--line); border-radius:10px; font:inherit; background:#fff; color:var(--brown); text-align:center; }
+  .save { background:var(--brown); color:#fff; border:0; border-radius:999px; padding:10px 20px; font:inherit; font-weight:700; cursor:pointer; margin-left:8px; }
+  .save:disabled { opacity:.5; cursor:default; }
+  .more { display:none; margin:14px auto 0; background:var(--brown); color:#fff; border:0; border-radius:999px; padding:12px 28px; font:inherit; font-weight:700; cursor:pointer; }
+  .msg { min-height:20px; font-weight:700; margin:8px 0; }
+  .bad { color:var(--red); } .good { color:var(--green); }
+  .lowtag { color:var(--red); font-size:13px; font-weight:700; margin-left:6px; }
+</style>
+</head>
+<body>
+<header><span class="logo">Emmahenmic</span><a href="admin.html">Dashboard</a></header>
+<main>
+  <h1>Stock</h1>
+  <div class="hint">Type the number you really have on the shelf and press Save. Products with the least stock come first. Every change is saved with your name.</div>
+  <div class="bar">
+    <input class="s" id="q" type="search" placeholder="Search by product or category" aria-label="Search products">
+    <label class="sw"><input type="checkbox" id="low"> Low stock only</label>
+  </div>
+  <div class="msg" id="msg" role="alert"></div>
+  <div id="list"></div>
+  <div class="hint" id="count"></div>
+  <button class="more" id="more" type="button">Show more products</button>
+</main>
+<script>
+  const token = localStorage.getItem('ehm_token');
+  const auth = { Authorization: 'Bearer ' + token };
+  const $ = (id) => document.getElementById(id);
+  const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; };
+  const say = (t, good) => { $('msg').textContent = t; $('msg').className = 'msg ' + (good ? 'good' : 'bad'); };
+  let shown = 0, query = '', reqId = 0, timer = null;
+
+  async function load(more) {
+    const mine = ++reqId;
+    const offset = more ? shown : 0;
+    const res = await fetch('/api/admin/stock?limit=30&offset=' + offset + '&q=' + encodeURIComponent(query) + (($('low').checked) ? '&low=1' : ''), { headers: auth });
+    const d = await res.json().catch(() => ({}));
+    if (mine !== reqId) return;
+    if (!res.ok) { say(d.error || 'Could not load the stock', false); return; }
+    if (!more) { $('list').innerHTML = ''; shown = 0; }
+    d.rows.forEach(p => {
+      const item = el('div', 'item' + (p.stock <= d.low_limit ? ' low' : ''));
+      const l = el('div', 'l'); const nm = el('b', '', p.name);
+      if (p.stock <= d.low_limit) nm.appendChild(el('span', 'lowtag', 'Low'));
+      l.append(nm, el('div', 'hint', (p.category || '') + ' · per ' + p.unit));
+      const box = el('div');
+      const input = el('input', 'n'); input.value = p.stock; input.inputMode = 'numeric'; input.setAttribute('aria-label', 'Stock for ' + p.name);
+      input.addEventListener('input', () => { input.value = input.value.replace(/\D/g, ''); });
+      const save = el('button', 'save', 'Save'); save.type = 'button';
+      const send = async () => {
+        if (input.value === '') { say('Type a number first', false); return; }
+        save.disabled = true;
+        const r = await fetch('/api/admin/stock/' + p.id, { method: 'POST', headers: { ...auth, 'Content-Type': 'application/json' }, body: JSON.stringify({ stock: Number(input.value) }) });
+        const x = await r.json().catch(() => ({}));
+        save.disabled = false;
+        if (r.ok) { say('Saved: ' + p.name + ' is now ' + input.value, true); item.classList.toggle('low', Number(input.value) <= d.low_limit); } else say(x.error || 'Could not save', false);
+      };
+      save.onclick = send; input.addEventListener('keydown', (e) => { if (e.key === 'Enter') send(); });
+      box.append(input, save); item.append(l, box); $('list').appendChild(item);
+    });
+    shown += d.rows.length;
+    $('count').textContent = d.total ? 'Showing ' + shown + ' of ' + d.total + ' products' : 'No products found.';
+    $('more').style.display = shown < d.total ? 'block' : 'none';
+  }
+  $('more').onclick = () => load(true);
+  $('low').onchange = () => load(false);
+  $('q').addEventListener('input', (e) => { clearTimeout(timer); timer = setTimeout(() => { query = e.target.value.trim(); load(false); }, 300); });
+
+  (async () => {
+    if (!token) { location.href = '/login.html'; return; }
+    const me = await fetch('/api/me', { headers: auth }); const m = await me.json();
+    if (!me.ok || !['owner', 'staff'].includes(m.role)) { location.href = '/'; return; }
+    if (new URLSearchParams(location.search).get('low') === '1') $('low').checked = true;
+    load(false);
+  })();
+</script>
+<script src="admin-nav.js"></script>
+</body>
+</html>

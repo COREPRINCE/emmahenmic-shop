@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Delivery areas | Emmahenmic</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@400;500;700&display=swap">
+<style>
+  :root { --brown:#3B2318; --gold:#F2A900; --bg:#FFFDF8; --line:#EADFCE; --muted:#6B5648; --red:#B3261E; --green:#1E7B3A; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:"DM Sans",Arial,sans-serif; background:var(--bg); color:var(--brown); }
+  header { display:flex; justify-content:space-between; align-items:center; padding:16px 20px; border-bottom:1px solid var(--line); }
+  header a { color:var(--brown); text-decoration:none; font-weight:500; }
+  .logo { font-family:"DM Serif Display",Georgia,serif; font-size:24px; }
+  main { max-width:720px; margin:0 auto; padding:24px 20px 60px; }
+  h1,h2 { font-family:"DM Serif Display",Georgia,serif; font-weight:400; margin:0 0 12px; }
+  h1 { font-size:34px; } h2 { font-size:24px; margin-top:30px; }
+  .hint { color:var(--muted); font-size:14px; }
+  .box { background:#fff; border:1px solid var(--line); border-radius:12px; padding:14px; margin-bottom:10px; }
+  .row { display:grid; grid-template-columns:1fr 130px; gap:10px; }
+  input { width:100%; padding:11px 12px; border:1.5px solid var(--line); border-radius:10px; font:inherit; background:#fff; color:var(--brown); }
+  input:focus { outline:3px solid var(--gold); outline-offset:1px; }
+  .bar { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-top:10px; flex-wrap:wrap; }
+  label.sw { display:flex; align-items:center; gap:8px; font-weight:500; cursor:pointer; }
+  label.sw input { width:20px; height:20px; accent-color:var(--brown); }
+  .btn { background:var(--gold); color:#2A1A00; border:0; border-radius:999px; padding:10px 22px; font:inherit; font-weight:700; cursor:pointer; }
+  .btn.dark { background:var(--brown); color:#fff; }
+  .btn:disabled { opacity:.5; cursor:default; }
+  .tag { display:inline-block; border-radius:999px; padding:2px 10px; font-size:12px; font-weight:700; background:#FBE0DE; color:var(--red); margin-left:8px; }
+  .msg { min-height:20px; margin:10px 0; font-weight:700; }
+  .bad { color:var(--red); } .good { color:var(--green); }
+</style>
+</head>
+<body>
+<header><span class="logo">Emmahenmic</span><a href="admin.html">Owner area</a></header>
+<main>
+  <h1>Delivery areas</h1>
+  <div class="hint">Customers choose one of these areas when they order. They only see the areas that are switched on. Set the delivery price for each area yourself.</div>
+  <div class="msg" id="msg" role="alert"></div>
+
+  <h2>Add an area</h2>
+  <div class="box">
+    <div class="row">
+      <input id="newName" placeholder="Area name, e.g. Yaba" aria-label="Area name">
+      <input id="newFee" inputmode="numeric" placeholder="Price (₦)" aria-label="Delivery price">
+    </div>
+    <div class="bar"><span class="hint">Type the price as a number, like 2500.</span><button class="btn" id="add" type="button">Add area</button></div>
+  </div>
+  <div class="box">
+    <b>Add all Lagos local governments</b>
+    <div class="hint" style="margin:6px 0 10px">Adds the 20 Lagos areas, switched OFF with price 0. Then you set each price and switch on the ones you deliver to.</div>
+    <button class="btn dark" id="lagos" type="button">Add the 20 Lagos areas</button>
+  </div>
+
+  <h2>Your areas</h2>
+  <div id="list"></div>
+</main>
+<script>
+  const token = localStorage.getItem('ehm_token');
+  const auth = { Authorization: 'Bearer ' + token };
+  const $ = (id) => document.getElementById(id);
+  const say = (t, good) => { $('msg').textContent = t; $('msg').className = 'msg ' + (good ? 'good' : 'bad'); };
+  const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; };
+  const digits = (input) => input.addEventListener('input', () => { input.value = input.value.replace(/\D/g, ''); });
+  async function api(url, method, body) {
+    const res = await fetch(url, { method: method || 'GET', headers: body ? { ...auth, 'Content-Type': 'application/json' } : auth, body: body ? JSON.stringify(body) : undefined });
+    return { ok: res.ok, data: await res.json().catch(() => ({})) };
+  }
+
+  async function start() {
+    if (!token) { location.href = '/login.html'; return; }
+    const me = await api('/api/me');
+    if (!me.ok || me.data.role !== 'owner') { location.href = me.ok && me.data.role === 'staff' ? '/admin.html' : '/'; return; }
+    digits($('newFee')); load();
+  }
+
+  async function load() {
+    const r = await api('/api/admin/zones');
+    $('list').innerHTML = '';
+    if (!r.ok) { say(r.data.error || 'Could not load the areas', false); return; }
+    if (!r.data.length) $('list').appendChild(el('p', 'hint', 'No areas yet. Add your first one above.'));
+    r.data.forEach(z => {
+      const box = el('div', 'box');
+      const row = el('div', 'row');
+      const name = el('input'); name.value = z.name; name.setAttribute('aria-label', 'Area name');
+      const fee = el('input'); fee.value = z.fee; fee.inputMode = 'numeric'; fee.setAttribute('aria-label', 'Delivery price'); digits(fee);
+      row.append(name, fee);
+      const bar = el('div', 'bar');
+      const sw = el('label', 'sw'); const cb = el('input'); cb.type = 'checkbox'; cb.checked = !!z.is_active;
+      const word = el('span', '', z.is_active ? 'Shown to customers' : 'Hidden from customers');
+      cb.onchange = () => { word.textContent = cb.checked ? 'Shown to customers' : 'Hidden from customers'; };
+      sw.append(cb, word);
+      const save = el('button', 'btn', 'Save'); save.type = 'button';
+      save.onclick = async () => {
+        save.disabled = true;
+        const x = await api('/api/admin/zones/' + z.id, 'PATCH', { name: name.value, fee: fee.value, is_active: cb.checked });
+        save.disabled = false;
+        if (x.ok) { say(x.data.changed ? 'Saved: ' + name.value : 'Nothing changed', true); load(); } else say(x.data.error || 'Could not save', false);
+      };
+      bar.append(sw, save);
+      box.append(row, bar); $('list').appendChild(box);
+    });
+  }
+
+  $('add').onclick = async () => {
+    const x = await api('/api/admin/zones', 'POST', { name: $('newName').value, fee: $('newFee').value });
+    if (x.ok) { say('Area added', true); $('newName').value = ''; $('newFee').value = ''; load(); } else say(x.data.error || 'Could not add', false);
+  };
+  $('lagos').onclick = async () => {
+    const x = await api('/api/admin/zones/add-lagos', 'POST', {});
+    if (x.ok) { say(x.data.added ? x.data.added + ' Lagos areas added. Set their prices and switch on the ones you deliver to.' : 'All Lagos areas are already on your list', true); load(); }
+    else say(x.data.error || 'Could not add', false);
+  };
+  start();
+</script>
+<script src="admin-nav.js"></script>
+</body>
+</html>

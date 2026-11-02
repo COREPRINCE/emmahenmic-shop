@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Staff | Emmahenmic</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@400;500;700&display=swap">
+<style>
+  :root { --brown:#3B2318; --gold:#F2A900; --bg:#FFFDF8; --line:#EADFCE; --muted:#6B5648; --red:#B3261E; --green:#1E7B3A; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:"DM Sans",Arial,sans-serif; background:var(--bg); color:var(--brown); }
+  header { display:flex; justify-content:space-between; align-items:center; padding:16px 20px; border-bottom:1px solid var(--line); }
+  header a { color:var(--brown); text-decoration:none; font-weight:500; }
+  .logo { font-family:"DM Serif Display",Georgia,serif; font-size:24px; }
+  main { max-width:680px; margin:0 auto; padding:24px 20px 60px; }
+  h1,h2 { font-family:"DM Serif Display",Georgia,serif; font-weight:400; margin:0 0 12px; }
+  h1 { font-size:34px; } h2 { font-size:24px; margin-top:30px; }
+  .hint { color:var(--muted); font-size:14px; }
+  .box { background:#fff; border:1px solid var(--line); border-radius:12px; padding:14px; margin-bottom:10px; }
+  label { display:block; font-weight:500; margin:12px 0 6px; }
+  input, select { width:100%; padding:11px 12px; border:1.5px solid var(--line); border-radius:10px; font:inherit; background:#fff; color:var(--brown); }
+  input:focus, select:focus { outline:3px solid var(--gold); outline-offset:1px; }
+  .two { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  .btn { background:var(--gold); color:#2A1A00; border:0; border-radius:999px; padding:11px 24px; font:inherit; font-weight:700; cursor:pointer; margin-top:16px; }
+  .small { background:none; border:1.5px solid var(--brown); color:var(--brown); border-radius:999px; padding:6px 14px; font:inherit; cursor:pointer; margin:6px 8px 0 0; }
+  .small.red { border-color:var(--red); color:var(--red); }
+  .tag { display:inline-block; border-radius:999px; padding:2px 10px; font-size:12px; font-weight:700; margin-left:8px; background:#DDF2E3; color:var(--green); }
+  .tag.off { background:#FBE0DE; color:var(--red); }
+  .msg { min-height:20px; margin:10px 0; font-weight:700; }
+  .bad { color:var(--red); } .good { color:var(--green); }
+</style>
+</head>
+<body>
+<header><span class="logo">Emmahenmic</span><a href="admin.html">Owner area</a></header>
+<main>
+  <h1>Staff</h1>
+  <div class="hint">Staff can see orders and move them through packing and delivery. They cannot confirm payments, cancel orders, change prices or manage products.</div>
+  <div class="msg" id="msg" role="alert"></div>
+
+  <h2>Add a staff member</h2>
+  <div class="box">
+    <label for="name">Full name</label><input id="name" autocomplete="off">
+    <div class="two">
+      <div><label for="email">Email (their login)</label><input id="email" type="email" autocomplete="off"></div>
+      <div><label for="phone">Phone</label><input id="phone" type="tel" autocomplete="off"></div>
+    </div>
+    <div class="two">
+      <div><label for="job">Job</label><select id="job"><option>Warehouse</option><option>Packing</option><option>Dispatch rider</option><option>Other</option></select></div>
+      <div><label for="pw">Temporary password</label><input id="pw" type="text" placeholder="At least 8 characters" autocomplete="off"></div>
+    </div>
+    <div class="hint" style="margin-top:8px">Tell the staff member their email and password yourself. They log in on the normal login page.</div>
+    <button class="btn" id="add" type="button">Create account</button>
+  </div>
+
+  <h2>Your staff</h2>
+  <div id="list"></div>
+</main>
+<script>
+  const token = localStorage.getItem('ehm_token');
+  const auth = { Authorization: 'Bearer ' + token };
+  const $ = (id) => document.getElementById(id);
+  const say = (t, good) => { $('msg').textContent = t; $('msg').className = 'msg ' + (good ? 'good' : 'bad'); };
+  const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; };
+  const when = (s) => s ? new Date(String(s).replace(' ', 'T') + 'Z').toLocaleString('en-NG', { dateStyle: 'medium', timeStyle: 'short' }) : 'never';
+  async function api(url, method, body) {
+    const res = await fetch(url, { method: method || 'GET', headers: body ? { ...auth, 'Content-Type': 'application/json' } : auth, body: body ? JSON.stringify(body) : undefined });
+    return { ok: res.ok, data: await res.json().catch(() => ({})) };
+  }
+  async function start() {
+    if (!token) { location.href = '/login.html'; return; }
+    const me = await api('/api/me');
+    if (!me.ok || me.data.role !== 'owner') { location.href = me.ok && me.data.role === 'staff' ? '/admin.html' : '/'; return; }
+    load();
+  }
+  async function load() {
+    const r = await api('/api/admin/staff');
+    $('list').innerHTML = '';
+    if (!r.ok) { say(r.data.error || 'Could not load staff', false); return; }
+    if (!r.data.length) $('list').appendChild(el('p', 'hint', 'No staff yet. Add the first one above.'));
+    r.data.forEach(u => {
+      const box = el('div', 'box');
+      const top = el('div'); top.append(el('b', '', u.full_name), el('span', 'tag' + (u.is_active ? '' : ' off'), u.is_active ? 'Active' : 'Switched off'));
+      box.append(top, el('div', 'hint', u.job_title + ' · ' + u.email + (u.phone ? ' · ' + u.phone : '')), el('div', 'hint', 'Last login: ' + when(u.last_active_at)));
+      const off = el('button', 'small' + (u.is_active ? ' red' : ''), u.is_active ? 'Switch off' : 'Switch on'); off.type = 'button';
+      off.onclick = async () => {
+        if (u.is_active && !confirm('Switch off ' + u.full_name + '? They will be logged out and cannot log in.')) return;
+        const x = await api('/api/admin/staff/' + u.id, 'PATCH', { is_active: !u.is_active });
+        x.ok ? (say('Saved', true), load()) : say(x.data.error, false);
+      };
+      const pw = el('button', 'small', 'Reset password'); pw.type = 'button';
+      pw.onclick = async () => {
+        const v = prompt('New password for ' + u.full_name + ' (at least 8 characters)');
+        if (v === null) return;
+        const x = await api('/api/admin/staff/' + u.id + '/password', 'POST', { password: v });
+        x.ok ? say('Password changed for ' + u.full_name, true) : say(x.data.error, false);
+      };
+      box.append(off, pw); $('list').appendChild(box);
+    });
+  }
+  $('add').onclick = async () => {
+    const x = await api('/api/admin/staff', 'POST', { full_name: $('name').value, email: $('email').value, phone: $('phone').value, job_title: $('job').value, password: $('pw').value });
+    if (x.ok) { say('Account created. Give them their email and password.', true); ['name', 'email', 'phone', 'pw'].forEach(i => $(i).value = ''); load(); }
+    else say(x.data.error || 'Could not create the account', false);
+  };
+  start();
+</script>
+<script src="admin-nav.js"></script>
+</body>
+</html>

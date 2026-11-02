@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>My orders | Emmahenmic</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@400;500;700&display=swap">
+<style>
+  :root { --brown:#3B2318; --gold:#F2A900; --bg:#FFFDF8; --line:#EADFCE; --muted:#6B5648; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:"DM Sans",Arial,sans-serif; background:var(--bg); color:var(--brown); }
+  header { display:flex; justify-content:space-between; align-items:center; padding:16px 20px; border-bottom:1px solid var(--line); }
+  header a { color:var(--brown); text-decoration:none; font-weight:500; }
+  .logo { font-family:"DM Serif Display",Georgia,serif; font-size:24px; }
+  main { max-width:640px; margin:0 auto; padding:24px 20px 60px; }
+  h1 { font-family:"DM Serif Display",Georgia,serif; font-weight:400; font-size:34px; margin:0 0 14px; }
+  .card { display:flex; justify-content:space-between; gap:12px; align-items:center; background:#fff; border:1px solid var(--line); border-radius:12px; padding:14px; margin-bottom:10px; color:var(--brown); text-decoration:none; }
+  .card:hover { border-color:var(--brown); }
+  .hint { color:var(--muted); font-size:13px; }
+  .tag { display:inline-block; border-radius:999px; padding:3px 12px; font-size:12px; font-weight:700; background:var(--line); color:var(--brown); }
+  .tag.dark { background:var(--brown); color:#fff; }
+  .tag.gold { background:var(--gold); color:#2A1A00; }
+  .tag.green { background:#DDF2E3; color:#1E7B3A; }
+  .tag.red { background:#FBE0DE; color:#B3261E; }
+</style>
+</head>
+<body>
+<header><a class="logo" href="/">Emmahenmic</a><a href="/">Back to shop</a></header>
+<main>
+  <h1>My orders</h1>
+  <div id="list"><p class="hint">Loading...</p></div>
+</main>
+<script>
+  const token = localStorage.getItem('ehm_token');
+  const naira = (n) => '₦' + Number(n).toLocaleString('en-NG');
+  const when = (s) => new Date(String(s).replace(' ', 'T') + 'Z').toLocaleString('en-NG', { dateStyle: 'medium', timeStyle: 'short' });
+  const STATUS = { placed: 'Placed', packaging: 'Packing', ready: 'Ready', out_for_delivery: 'Out for delivery', delivered: 'Delivered', cancelled: 'Cancelled' };
+  const PAY = { waiting: ['Awaiting your payment', 'gold'], receipt_uploaded: ['Receipt being checked', ''], confirmed: ['Paid', 'green'], failed: ['Receipt rejected, upload again', 'red'] };
+  const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; };
+  (async () => {
+    if (!token) { location.href = '/login.html?next=/my-orders.html'; return; }
+    const list = document.getElementById('list');
+    try {
+      const res = await fetch('/api/orders', { headers: { Authorization: 'Bearer ' + token } });
+      const rows = await res.json();
+      list.innerHTML = '';
+      if (!res.ok) { if (res.status === 401) localStorage.removeItem('ehm_token'); list.appendChild(el('p', 'hint', rows.error || 'Could not load your orders')); return; }
+      if (!rows.length) { list.appendChild(el('p', 'hint', 'You have no orders yet.')); return; }
+      rows.forEach(o => {
+        const a = el('a', 'card'); a.href = 'order.html?n=' + encodeURIComponent(o.order_number);
+        const left = el('div'); left.append(el('b', '', o.order_number), el('div', 'hint', when(o.created_at) + ' · ' + naira(o.total)));
+        const right = el('div'); right.style.textAlign = 'right';
+        const p = PAY[o.payment_status] || ['', ''];
+        right.append(el('span', 'tag dark', STATUS[o.status] || o.status), document.createElement('br'), el('span', 'tag ' + p[1], p[0]));
+        a.append(left, right); list.appendChild(a);
+      });
+    } catch (e) { list.innerHTML = ''; list.appendChild(el('p', 'hint', 'Could not reach the server. Is it running?')); }
+  })();
+</script>
+<script src="site-nav.js"></script>
+<script src="chat-widget.js"></script>
+<script src="dev.js"></script>
+</body>
+</html>

@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dashboard | Emmahenmic</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@400;500;700&display=swap">
+<style>
+  :root { --brown:#3B2318; --gold:#F2A900; --bg:#FFFDF8; --line:#EADFCE; --muted:#6B5648; --red:#B3261E; --green:#1E7B3A; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:"DM Sans",Arial,sans-serif; background:var(--bg); color:var(--brown); }
+  header { display:flex; justify-content:space-between; align-items:center; padding:16px 20px; border-bottom:1px solid var(--line); }
+  header a { color:var(--brown); text-decoration:none; font-weight:500; }
+  .logo { font-family:"DM Serif Display",Georgia,serif; font-size:24px; }
+  main { max-width:1100px; margin:0 auto; padding:24px 20px 60px; }
+  h1,h2 { font-family:"DM Serif Display",Georgia,serif; font-weight:400; margin:0; }
+  h1 { font-size:34px; } h2 { font-size:20px; margin-bottom:12px; }
+  .muted { color:var(--muted); font-size:14px; }
+  .top { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; flex-wrap:wrap; margin-bottom:18px; }
+  .btn { display:inline-block; background:var(--brown); color:#fff; text-decoration:none; border:0; border-radius:999px; padding:11px 22px; font:inherit; font-weight:700; cursor:pointer; }
+  .btn.sm { padding:7px 16px; font-size:14px; }
+  .btn.out { background:none; color:var(--brown); border:2px solid var(--brown); }
+  .btn.red { background:none; color:var(--red); border:2px solid var(--red); }
+  .stats { display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:14px; margin-bottom:16px; }
+  .card { background:#fff; border:1px solid var(--line); border-radius:14px; padding:18px; margin-bottom:16px; }
+  .stat b { display:block; font-size:30px; font-family:"DM Serif Display",Georgia,serif; font-weight:400; margin-top:4px; }
+  .stat b.gold { color:#A86500; } .stat b.red { color:var(--red); }
+  .two { display:grid; grid-template-columns:1.4fr 1fr; gap:16px; }
+  @media (max-width:860px) { .two { grid-template-columns:1fr; } }
+  .chart { display:flex; align-items:flex-end; gap:10px; height:190px; padding-top:8px; }
+  .col { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; height:100%; min-width:0; }
+  .bar { width:100%; background:#F0C96A; border-radius:8px 8px 0 0; min-height:3px; }
+  .bar.today { background:var(--brown); }
+  .col small { margin-top:6px; color:var(--muted); font-size:12px; }
+  .col .v { font-size:11px; color:var(--muted); margin-bottom:3px; white-space:nowrap; }
+  .row { display:flex; justify-content:space-between; align-items:center; gap:10px; padding:10px 0; border-bottom:1px solid var(--line); flex-wrap:wrap; }
+  .row:last-child { border-bottom:0; }
+  .row .l { min-width:0; }
+  .tag { display:inline-block; border-radius:999px; padding:2px 10px; font-size:12px; font-weight:700; background:var(--line); }
+  .msg { min-height:20px; font-weight:700; color:var(--red); margin:8px 0; }
+  .links { display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:14px; }
+  .links a { display:block; background:#fff; border:1px solid var(--line); border-radius:14px; padding:18px; color:var(--brown); text-decoration:none; font-weight:700; }
+  .links a:hover { border-color:var(--brown); }
+</style>
+</head>
+<body>
+<header><span class="logo">Emmahenmic</span><a href="/">Back to shop</a></header>
+<main>
+  <div class="top">
+    <div><h1 id="hello">Dashboard</h1><div class="muted" id="sub"></div></div>
+    <a class="btn" id="addBtn" href="add-product.html" style="display:none">Add product</a>
+  </div>
+  <div class="msg" id="msg" role="alert"></div>
+
+  <div id="ownerView" style="display:none">
+    <div class="stats" id="stats"></div>
+    <div class="two">
+      <section class="card"><h2>Sales, last 7 days</h2><div class="chart" id="chart" role="img"></div></section>
+      <section class="card"><h2>Top products this month</h2><div id="top"></div></section>
+    </div>
+    <section class="card"><h2>Payment approvals (bank transfer receipts)</h2><div id="appr"></div></section>
+    <section class="card"><h2>Recent orders</h2><div id="recent"></div></section>
+    <section class="card"><h2>Low stock</h2><div id="low"></div></section>
+  </div>
+
+  <div id="staffView" style="display:none">
+    <div class="links">
+      <a href="admin-orders.html">Orders: pack and send</a>
+      <a href="admin-stock.html">Stock: update numbers</a>
+      <a href="admin-chat.html">Messages <span id="unread"></span></a>
+    </div>
+  </div>
+</main>
+<script>
+  const token = localStorage.getItem('ehm_token');
+  const auth = { Authorization: 'Bearer ' + token };
+  const $ = (id) => document.getElementById(id);
+  const naira = (n) => '₦' + Number(n).toLocaleString('en-NG');
+  const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; };
+  const STATUS = { placed: 'Placed', packaging: 'Packing', ready: 'Ready', out_for_delivery: 'Out for delivery', delivered: 'Delivered', cancelled: 'Cancelled' };
+  async function api(url, method, body) {
+    const res = await fetch(url, { method: method || 'GET', headers: body ? { ...auth, 'Content-Type': 'application/json' } : auth, body: body ? JSON.stringify(body) : undefined });
+    return { ok: res.ok, data: await res.json().catch(() => ({})) };
+  }
+  const empty = (box, text) => { box.appendChild(el('div', 'muted', text)); };
+
+  async function start() {
+    if (!token) { location.href = '/login.html'; return; }
+    const me = await api('/api/me');
+    if (!me.ok) { localStorage.removeItem('ehm_token'); location.href = '/login.html'; return; }
+    const who = me.data;
+    if (who.role !== 'owner' && who.role !== 'staff') {
+      $('hello').textContent = 'This area is for the shop team';
+      $('sub').textContent = 'You are logged in as ' + who.full_name + ' (' + who.role + ' account).';
+      const a = el('a', '', 'Log in with the owner account'); a.href = '/login.html'; a.onclick = () => localStorage.removeItem('ehm_token');
+      $('msg').style.color = 'inherit'; $('msg').appendChild(a); return;
+    }
+    $('hello').textContent = 'Welcome back, ' + who.full_name.split(' ')[0];
+    if (who.role === 'owner') { $('addBtn').style.display = 'inline-block'; $('ownerView').style.display = 'block'; loadOwner(); setInterval(() => { if (!document.hidden) loadOwner(); }, 60000); }
+    else {
+      $('staffView').style.display = 'block'; $('sub').textContent = 'Shop team';
+      const s = await api('/api/admin/summary');
+      if (s.ok && s.data.unread_chats) $('unread').textContent = '(' + s.data.unread_chats + ' new)';
+    }
+  }
+
+  async function loadOwner() {
+    const r = await api('/api/admin/dashboard');
+    if (!r.ok) { $('msg').textContent = r.data.error || 'Could not load the dashboard'; return; }
+    $('msg').textContent = '';
+    const d = r.data;
+    $('sub').textContent = 'How the shop is doing. Revenue counts payments you have confirmed.';
+
+    $('stats').innerHTML = '';
+    [['Revenue today', naira(d.revenue_today), ''], ['Orders today', d.orders_today, ''], ['Awaiting approval', d.awaiting, 'gold'], ['Low stock items', d.low_count, d.low_count ? 'red' : '']].forEach(([label, v, cls]) => {
+      const c = el('div', 'card stat'); c.appendChild(el('span', 'muted', label)); c.appendChild(el('b', cls, String(v))); $('stats').appendChild(c);
+    });
+
+    const chart = $('chart'); chart.innerHTML = '';
+    const max = Math.max(...d.sales_7d.map(x => x.revenue), 1);
+    chart.setAttribute('aria-label', 'Sales in the last 7 days: ' + d.sales_7d.map(x => x.date + ' ' + naira(x.revenue)).join(', '));
+    d.sales_7d.forEach((x, i) => {
+      const col = el('div', 'col');
+      col.title = x.date + ': ' + naira(x.revenue);
+      col.appendChild(el('span', 'v', x.revenue ? naira(x.revenue) : ''));
+      const bar = el('div', 'bar' + (i === d.sales_7d.length - 1 ? ' today' : '')); bar.style.height = Math.max(x.revenue / max * 150, 3) + 'px';
+      col.append(bar, el('small', '', new Date(x.date + 'T00:00:00Z').toLocaleDateString('en-NG', { weekday: 'short', timeZone: 'UTC' })));
+      chart.appendChild(col);
+    });
+
+    $('top').innerHTML = '';
+    if (!d.top_products.length) empty($('top'), 'No confirmed sales this month yet.');
+    d.top_products.forEach(p => { const row = el('div', 'row'); row.append(el('span', '', p.name), el('b', '', p.qty + ' ' + p.unit + (p.qty === 1 ? '' : 's'))); $('top').appendChild(row); });
+
+    $('appr').innerHTML = '';
+    if (!d.approvals.length) empty($('appr'), 'No receipts are waiting. Well done.');
+    d.approvals.forEach(a => {
+      const row = el('div', 'row'); const l = el('div', 'l');
+      l.append(el('b', '', a.order_number + ' · ' + a.delivery_name), el('div', 'muted', naira(a.total) + ' · receipt uploaded'));
+      const btns = el('div');
+      const view = el('a', 'btn sm out', 'View receipt'); view.href = 'admin-orders.html?order=' + encodeURIComponent(a.order_number);
+      const ok = el('button', 'btn sm', 'Approve'); ok.type = 'button'; ok.style.marginLeft = '6px';
+      const no = el('button', 'btn sm red', 'Reject'); no.type = 'button'; no.style.marginLeft = '6px';
+      const act = async (action, ask) => {
+        if (!confirm(ask)) return;
+        const x = await api('/api/admin/orders/' + encodeURIComponent(a.order_number) + '/payment', 'POST', { action });
+        if (x.ok) loadOwner(); else $('msg').textContent = x.data.error || 'Could not do that';
+      };
+      ok.onclick = () => act('confirm', 'Confirm that ' + naira(a.total) + ' has reached your account?');
+      no.onclick = () => act('reject', 'Reject this receipt? The customer can upload another one.');
+      btns.append(view, ok, no); row.append(l, btns); $('appr').appendChild(row);
+    });
+
+    $('recent').innerHTML = '';
+    if (!d.recent_orders.length) empty($('recent'), 'No orders yet.');
+    d.recent_orders.forEach(o => {
+      const row = el('div', 'row'); const l = el('a', 'l'); l.href = 'admin-orders.html?order=' + encodeURIComponent(o.order_number); l.style.cssText = 'color:inherit;text-decoration:none';
+      l.append(el('b', '', o.order_number), document.createTextNode(' · ' + o.delivery_name));
+      const r2 = el('div'); r2.append(el('span', 'tag', STATUS[o.status] || o.status), document.createTextNode('  '), el('b', '', naira(o.total)));
+      row.append(l, r2); $('recent').appendChild(row);
+    });
+
+    $('low').innerHTML = '';
+    if (!d.low_stock.length) empty($('low'), 'Nothing is running low.');
+    d.low_stock.forEach(p => {
+      const row = el('div', 'row'); row.append(el('span', '', p.name + ' (' + p.unit + ')'), el('b', '', p.stock + ' left')); row.lastChild.style.color = '#B3261E'; $('low').appendChild(row);
+    });
+    if (d.low_count > d.low_stock.length) { const m = el('a', '', 'See all ' + d.low_count + ' low-stock products'); m.href = 'admin-stock.html?low=1'; m.style.cssText = 'display:inline-block;margin-top:8px;color:#3B2318;font-weight:700'; $('low').appendChild(m); }
+  }
+  start();
+</script>
+<script src="admin-nav.js"></script>
+</body>
+</html>

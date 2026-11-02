@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Adverts | Emmahenmic</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@400;500;700&display=swap">
+<style>
+  :root { --brown:#3B2318; --gold:#F2A900; --bg:#FFFDF8; --line:#EADFCE; --muted:#6B5648; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:"DM Sans",Arial,sans-serif; background:var(--bg); color:var(--brown); }
+  header { display:flex; justify-content:space-between; align-items:center; padding:16px 20px; border-bottom:1px solid var(--line); }
+  header a { color:var(--brown); text-decoration:none; font-weight:500; }
+  .logo { font-family:"DM Serif Display",Georgia,serif; font-size:24px; }
+  main { max-width:640px; margin:0 auto; padding:24px 20px 60px; }
+  h1,h2 { font-family:"DM Serif Display",Georgia,serif; font-weight:400; margin:0 0 12px; }
+  h1 { font-size:34px; } h2 { font-size:26px; margin-top:36px; }
+  label { display:block; font-weight:500; margin:14px 0 6px; }
+  input, select { width:100%; padding:12px 14px; border:1.5px solid var(--line); border-radius:10px; font:inherit; background:#fff; color:var(--brown); }
+  input:focus, select:focus { outline:3px solid var(--gold); outline-offset:1px; }
+  .hint { color:var(--muted); font-size:13px; margin-top:4px; }
+  .go { width:100%; margin-top:22px; background:var(--gold); color:#2A1A00; border:0; border-radius:999px; padding:14px; font:inherit; font-weight:700; cursor:pointer; }
+  .msg { margin-top:14px; min-height:20px; font-weight:500; }
+  .bad { color:#B3261E; } .good { color:#1E7B3A; }
+  .item { display:flex; gap:12px; align-items:center; background:#fff; border:1px solid var(--line); border-radius:12px; padding:10px; margin-bottom:10px; }
+  .item img { width:84px; height:48px; border-radius:8px; object-fit:cover; flex:none; background:var(--line); }
+  .grow { flex:1; min-width:0; }
+  .small { background:none; border:1.5px solid var(--brown); color:var(--brown); border-radius:999px; padding:6px 14px; font:inherit; cursor:pointer; }
+  .off { opacity:.55; }
+</style>
+</head>
+<body>
+<header><span class="logo">Emmahenmic</span><a href="admin.html">Owner area</a></header>
+<main>
+  <h1>New advert</h1>
+  <div class="hint">Shows in the "New arrivals" slider on the home page. Up to 5 can run at once, and each one stops by itself when its days are finished.</div>
+  <label for="title">Title</label><input id="title" maxlength="80" placeholder="e.g. New shea butter range">
+  <label for="company">Company (who is advertising)</label><input id="company" maxlength="60">
+  <label for="tagline">Short line</label><input id="tagline" maxlength="120">
+  <label for="link">Link when tapped (optional)</label><input id="link" placeholder="https://...">
+  <label for="days">How long should it run?</label>
+  <select id="days"><option value="7">7 days</option><option value="14" selected>14 days</option><option value="30">30 days</option></select>
+  <label for="photo">Advert picture (wide pictures look best)</label><input id="photo" type="file" accept="image/jpeg,image/png,image/webp">
+  <button class="go" id="save" type="button">Publish advert</button>
+  <div class="msg" id="msg" role="alert"></div>
+
+  <h2>Your adverts</h2>
+  <div id="list"></div>
+</main>
+<script>
+  const token = localStorage.getItem('ehm_token');
+  const auth = { Authorization: 'Bearer ' + token };
+  const $ = (id) => document.getElementById(id);
+  const say = (t, good) => { $('msg').textContent = t; $('msg').className = 'msg ' + (good ? 'good' : 'bad'); };
+
+  async function start() {
+    if (!token) { location.href = '/login.html'; return; }
+    const me = await (await fetch('/api/me', { headers: auth })).json();
+    if (me.role !== 'owner') { location.href = me.role === 'staff' ? '/admin.html' : '/'; return; }
+    loadList();
+  }
+
+  async function loadList() {
+    const rows = await (await fetch('/api/admin/promotions', { headers: auth })).json();
+    $('list').innerHTML = '';
+    if (!rows.length) { const p = document.createElement('p'); p.className = 'hint'; p.textContent = 'No adverts yet.'; $('list').appendChild(p); }
+    rows.forEach(a => {
+      const item = document.createElement('div'); item.className = 'item' + (a.status === 'running' ? '' : ' off');
+      const img = document.createElement('img'); img.src = a.image_url; img.alt = a.title;
+      const grow = document.createElement('div'); grow.className = 'grow';
+      const t = document.createElement('b'); t.textContent = a.title;
+      const s = document.createElement('div'); s.className = 'hint';
+      s.textContent = (a.company ? a.company + ' · ' : '') +
+        (a.status === 'running' ? 'Running, about ' + a.days_left + ' day(s) left' : a.status === 'expired' ? 'Expired' : 'Ended early');
+      grow.append(t, s); item.append(img, grow);
+      if (a.status === 'running') {
+        const b = document.createElement('button'); b.className = 'small'; b.textContent = 'End now';
+        b.onclick = async () => {
+          if (!confirm('End this advert now?')) return;
+          await fetch('/api/admin/promotions/' + a.id + '/end', { method: 'POST', headers: auth });
+          loadList();
+        };
+        item.appendChild(b);
+      }
+      $('list').appendChild(item);
+    });
+  }
+
+  $('save').onclick = async () => {
+    say('', true);
+    const f = new FormData();
+    f.append('title', $('title').value); f.append('company', $('company').value);
+    f.append('tagline', $('tagline').value); f.append('link_url', $('link').value); f.append('days', $('days').value);
+    if ($('photo').files[0]) f.append('photo', $('photo').files[0]);
+    try {
+      const res = await fetch('/api/admin/promotions', { method: 'POST', headers: auth, body: f });
+      const d = await res.json();
+      if (!res.ok) { say(d.error || 'Something went wrong', false); return; }
+      say('Published. It now shows on the home page.', true);
+      ['title','company','tagline','link','photo'].forEach(i => $(i).value = '');
+      loadList();
+    } catch (e) { say('Could not reach the server. Is it running?', false); }
+  };
+  start();
+</script>
+<script src="admin-nav.js"></script>
+</body>
+</html>
