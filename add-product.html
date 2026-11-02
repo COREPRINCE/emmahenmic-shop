@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Products | Emmahenmic</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@400;500;700&display=swap">
+<style>
+  :root { --brown:#3B2318; --gold:#F2A900; --bg:#FFFDF8; --line:#EADFCE; --muted:#6B5648; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:"DM Sans",Arial,sans-serif; background:var(--bg); color:var(--brown); }
+  header { display:flex; justify-content:space-between; align-items:center; padding:16px 20px; border-bottom:1px solid var(--line); }
+  header a { color:var(--brown); text-decoration:none; font-weight:500; }
+  .logo { font-family:"DM Serif Display",Georgia,serif; font-size:24px; }
+  main { max-width:640px; margin:0 auto; padding:24px 20px 60px; }
+  h1,h2 { font-family:"DM Serif Display",Georgia,serif; font-weight:400; margin:0 0 12px; }
+  h1 { font-size:34px; } h2 { font-size:26px; margin-top:36px; }
+  label { display:block; font-weight:500; margin:14px 0 6px; }
+  input, select, textarea { width:100%; padding:12px 14px; border:1.5px solid var(--line); border-radius:10px; font:inherit; background:#fff; color:var(--brown); }
+  input:focus, select:focus, textarea:focus { outline:3px solid var(--gold); outline-offset:1px; }
+  .row { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  .hint { color:var(--muted); font-size:13px; margin-top:4px; }
+  .go { width:100%; margin-top:22px; background:var(--gold); color:#2A1A00; border:0; border-radius:999px; padding:14px; font:inherit; font-weight:700; cursor:pointer; }
+  .msg { margin-top:14px; min-height:20px; font-weight:500; }
+  .bad { color:#B3261E; } .good { color:#1E7B3A; }
+  .item { display:flex; gap:12px; align-items:center; background:#fff; border:1px solid var(--line); border-radius:12px; padding:10px; margin-bottom:10px; }
+  .item img, .thumb { width:56px; height:56px; border-radius:8px; object-fit:cover; background:var(--line); flex:none; }
+  .item .grow { flex:1; min-width:0; }
+  .small { background:none; border:1.5px solid var(--brown); color:var(--brown); border-radius:999px; padding:6px 14px; font:inherit; cursor:pointer; }
+  .off { opacity:.55; }
+</style>
+</head>
+<body>
+<header><span class="logo">Emmahenmic</span><a href="admin.html">Owner area</a></header>
+<main>
+  <h1 id="formTitle">Add a product</h1>
+  <label for="name">Product name</label><input id="name">
+  <div class="row">
+    <div><label for="category">Category</label><select id="category"></select></div>
+    <div><label for="newCat">Or a new category</label><input id="newCat" placeholder="e.g. Nails"></div>
+  </div>
+  <div class="row">
+    <div><label for="unit">Sold by</label><select id="unit"><option value="dozen">Dozen</option><option value="carton">Carton</option></select></div>
+    <div><label for="price">Price (₦)</label><input id="price" type="text" inputmode="numeric"></div>
+  </div>
+  <div class="row">
+    <div><label for="stock">In stock</label><input id="stock" type="text" inputmode="numeric"></div>
+    <div><label for="minOrder">Minimum order</label><input id="minOrder" type="text" inputmode="numeric" value="1"></div>
+  </div>
+  <div class="row">
+    <div><label for="nafdac">NAFDAC number</label><input id="nafdac"></div>
+    <div><label for="expiry">Expiry date</label><input id="expiry" type="date"></div>
+  </div>
+  <label for="desc">Description</label><textarea id="desc" rows="3"></textarea>
+  <label for="photo">Photo (JPG, PNG or WEBP, up to 3MB)</label><div id="curPhoto" class="hint" style="margin-bottom:8px"></div>
+  <input id="photo" type="file" accept="image/jpeg,image/png,image/webp">
+
+  <label>Bulk prices (optional)</label>
+  <div class="hint">Cheaper price when a customer buys more. Leave empty if there is none.</div>
+  <div class="row"><input id="bq1" type="text" inputmode="numeric" placeholder="From quantity, e.g. 10"><input id="bp1" type="text" inputmode="numeric" placeholder="Price each, e.g. 3300"></div>
+  <div class="row" style="margin-top:8px"><input id="bq2" type="text" inputmode="numeric" placeholder="From quantity, e.g. 50"><input id="bp2" type="text" inputmode="numeric" placeholder="Price each, e.g. 3100"></div>
+
+  <button class="go" id="save" type="button">Save product</button>
+  <button class="small" id="cancelEdit" type="button" style="display:none;margin-top:10px">Cancel editing</button>
+  <div class="msg" id="msg" role="alert"></div>
+
+  <h2>Your products</h2>
+  <input id="listSearch" type="search" placeholder="Search your products by name, category or NAFDAC number" aria-label="Search your products" style="margin-bottom:12px">
+  <div id="list"></div>
+  <div class="hint" id="listCount" style="margin-top:6px"></div>
+  <button class="small" id="listMore" type="button" style="display:none;margin:12px 0 0">Show more products</button>
+</main>
+<script>
+  const token = localStorage.getItem('ehm_token');
+  const auth = { Authorization: 'Bearer ' + token };
+  const $ = (id) => document.getElementById(id);
+  const naira = (n) => '₦' + Number(n).toLocaleString('en-NG');
+  const say = (text, good) => { $('msg').textContent = text; $('msg').className = 'msg ' + (good ? 'good' : 'bad'); };
+
+  async function start() {
+    if (!token) { location.href = '/login.html'; return; }
+    const me = await (await fetch('/api/me', { headers: auth })).json();
+    if (me.role !== 'owner') { location.href = me.role === 'staff' ? '/admin.html' : '/'; return; }
+    await loadCategories(); await loadList();
+  }
+
+  async function loadCategories() {
+    const cats = await (await fetch('/api/categories')).json();
+    $('category').innerHTML = '';
+    const first = document.createElement('option'); first.value = ''; first.textContent = 'Choose...';
+    $('category').appendChild(first);
+    cats.forEach(c => { const o = document.createElement('option'); o.value = c.id; o.textContent = c.name; $('category').appendChild(o); });
+  }
+
+  // The list loads 30 products at a time, so it stays quick with 1000+ products.
+  // loadList() starts again from the top, loadList('more') adds the next 30, loadList('refresh') reloads what you see now.
+  let shown = 0, listQuery = '', listReq = 0;
+  async function loadList(mode = 'reset') {
+    const mine = ++listReq;
+    const offset = mode === 'more' ? shown : 0;
+    const limit = mode === 'refresh' ? Math.min(Math.max(shown, 30), 200) : 30;
+    const res = await fetch('/api/admin/products?limit=' + limit + '&offset=' + offset + '&q=' + encodeURIComponent(listQuery), { headers: auth });
+    const data = await res.json();
+    if (mine !== listReq) return;
+    if (!res.ok) { say(data.error || 'Could not load your products', false); return; }
+    if (mode !== 'more') { $('list').innerHTML = ''; shown = 0; }
+    data.rows.forEach(p => {
+      const item = document.createElement('div'); item.className = 'item' + (p.is_active ? '' : ' off');
+      let pic;
+      if (p.photo_url) { pic = document.createElement('img'); pic.src = p.photo_url; pic.alt = p.name; }
+      else { pic = document.createElement('div'); pic.className = 'thumb'; }
+      const grow = document.createElement('div'); grow.className = 'grow';
+      const nm = document.createElement('b'); nm.textContent = p.name;
+      const info = document.createElement('div'); info.className = 'hint';
+      info.textContent = (p.category || '') + ' · ' + naira(p.base_price) + ' per ' + p.unit + ' · stock ' + p.stock + (p.is_active ? '' : ' · HIDDEN');
+      grow.append(nm, info);
+      const btn = document.createElement('button'); btn.className = 'small'; btn.textContent = p.is_active ? 'Hide' : 'Show';
+      btn.onclick = async () => { await patch(p.id, { is_active: !p.is_active }); };
+      const st = document.createElement('button'); st.className = 'small'; st.textContent = 'Stock';
+      st.onclick = async () => {
+        const v = prompt('New stock number for ' + p.name, p.stock);
+        if (v === null) return;
+        await patch(p.id, { stock: Number(v) });
+      };
+      const pr = document.createElement('button'); pr.className = 'small'; pr.textContent = 'Price';
+      pr.onclick = async () => {
+        const v = prompt('New price (₦) for ' + p.name, p.base_price);
+        if (v === null) return;
+        await patch(p.id, { base_price: Number(String(v).replace(/\D/g, '')) });
+      };
+      const ed = document.createElement('button'); ed.className = 'small'; ed.textContent = 'Edit';
+      ed.onclick = () => startEdit(p.id);
+      item.append(pic, grow, ed, pr, st, btn); $('list').appendChild(item);
+    });
+    shown += data.rows.length;
+    $('listCount').textContent = data.total ? 'Showing ' + shown + ' of ' + data.total + ' products' : (listQuery ? 'No product matches your search.' : 'No products yet.');
+    $('listMore').style.display = shown < data.total ? 'inline-block' : 'none';
+  }
+
+  async function patch(id, body) {
+    const res = await fetch('/api/admin/products/' + id, { method: 'PATCH', headers: { ...auth, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const d = await res.json();
+    if (!res.ok) say(d.error, false); else say('Saved', true);
+    loadList('refresh');
+  }
+
+  $('save').onclick = async () => {
+    say('', true);
+    const f = new FormData();
+    f.append('name', $('name').value); f.append('category_id', $('category').value); f.append('new_category', $('newCat').value);
+    f.append('unit', $('unit').value); f.append('base_price', $('price').value); f.append('stock', $('stock').value);
+    f.append('min_order', $('minOrder').value); f.append('nafdac_number', $('nafdac').value);
+    f.append('expiry_date', $('expiry').value); f.append('description', $('desc').value);
+    f.append('bulk', JSON.stringify([{ min_qty: $('bq1').value, unit_price: $('bp1').value }, { min_qty: $('bq2').value, unit_price: $('bp2').value }]));
+    if ($('photo').files[0]) f.append('photo', $('photo').files[0]);
+    try {
+      const res = await fetch(editingId ? '/api/admin/products/' + editingId : '/api/admin/products', { method: editingId ? 'PUT' : 'POST', headers: auth, body: f });
+      const d = await res.json();
+      if (!res.ok) { say(d.error || 'Something went wrong', false); return; }
+      say((editingId ? 'Changes saved: ' : 'Saved: ') + d.name + '. The shop page is updated.', true);
+      resetForm();
+      await loadCategories(); loadList();
+    } catch (e) { say('Could not reach the server. Is it running?', false); }
+  };
+  let editingId = null;
+  const FIELDS = ['name','newCat','price','stock','nafdac','expiry','desc','bq1','bp1','bq2','bp2','photo'];
+  function resetForm() {
+    editingId = null;
+    FIELDS.forEach(i => $(i).value = '');
+    $('minOrder').value = 1; $('category').value = ''; $('unit').value = 'dozen';
+    $('formTitle').textContent = 'Add a product'; $('save').textContent = 'Save product';
+    $('cancelEdit').style.display = 'none'; $('curPhoto').textContent = '';
+  }
+  async function startEdit(id) {
+    const r = await fetch('/api/admin/products/' + id, { headers: auth });
+    const d = await r.json();
+    if (!r.ok) { say(d.error || 'Could not open this product', false); return; }
+    resetForm(); say('', true);
+    editingId = id;
+    $('formTitle').textContent = 'Edit product'; $('save').textContent = 'Save changes'; $('cancelEdit').style.display = 'inline-block';
+    $('name').value = d.name; $('category').value = d.category_id || ''; $('unit').value = d.unit;
+    $('price').value = d.base_price; $('stock').value = d.stock; $('minOrder').value = d.min_order;
+    $('nafdac').value = d.nafdac_number || ''; $('expiry').value = d.expiry_date || ''; $('desc').value = d.description || '';
+    const t = d.bulk_prices || [];
+    $('bq1').value = t[0] ? t[0].min_qty : ''; $('bp1').value = t[0] ? t[0].unit_price : '';
+    $('bq2').value = t[1] ? t[1].min_qty : ''; $('bp2').value = t[1] ? t[1].unit_price : '';
+    const cur = $('curPhoto'); cur.textContent = '';
+    if (d.photo_url) {
+      const img = document.createElement('img'); img.src = d.photo_url; img.alt = d.name;
+      img.style.cssText = 'width:80px;height:80px;object-fit:cover;border-radius:10px;display:block;margin-bottom:6px';
+      cur.append(img, document.createTextNode('Current photo. Choose a new picture below to replace it.'));
+    } else cur.textContent = 'No photo yet. Choose one below to add it.';
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+  $('cancelEdit').onclick = () => { resetForm(); say('', true); };
+  ['price','stock','minOrder','bq1','bp1','bq2','bp2'].forEach(id =>
+    $(id).addEventListener('input', () => { $(id).value = $(id).value.replace(/\D/g, ''); }));
+  $('listMore').onclick = () => loadList('more');
+  let listTimer = null;
+  $('listSearch').addEventListener('input', (e) => {
+    clearTimeout(listTimer);
+    listTimer = setTimeout(() => { listQuery = e.target.value.trim(); loadList(); }, 300);
+  });
+  start();
+</script>
+<script src="admin-nav.js"></script>
+</body>
+</html>

@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Emmahenmic The Great Business Ent</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@400;500;700&display=swap">
+<style>
+  :root { --brown:#3B2318; --gold:#F2A900; --bg:#FFFDF8; --line:#EADFCE; --muted:#6B5648; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family:"DM Sans",Arial,sans-serif; background:var(--bg); color:var(--brown); }
+  a { color:inherit; text-decoration:none; }
+  header { display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap;
+           padding:16px 20px; border-bottom:1px solid var(--line); }
+  .logo { font-family:"DM Serif Display",Georgia,serif; font-size:24px; }
+  .logo small { font-family:"DM Sans",Arial,sans-serif; font-size:13px; color:var(--muted); }
+  .cart { border:2px solid var(--brown); border-radius:999px; padding:8px 16px; font-weight:700; background:none; color:var(--brown); font:inherit; font-weight:700; cursor:pointer; }
+  .hero { background:linear-gradient(rgba(59,35,24,.80), rgba(59,35,24,.80)), url('images/hero.jpg') center/cover; background-color:var(--brown); color:#FFF4DC; padding:64px 20px; }
+  .hero h1 { margin:0; font-family:"DM Serif Display",Georgia,serif; font-weight:400; font-size:44px; line-height:1.1; max-width:12ch; }
+  .hero p { max-width:420px; margin:14px 0 22px; line-height:1.5; }
+  .btn { display:inline-block; background:var(--gold); color:#2A1A00; font-weight:700; padding:13px 26px; border-radius:999px; }
+  main { max-width:1200px; margin:0 auto; padding:28px 20px 80px; }
+  h2 { font-family:"DM Serif Display",Georgia,serif; font-weight:400; font-size:30px; margin:0 0 14px; }
+  .chips { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:20px; }
+  .chip { border:1.5px solid var(--line); background:#fff; color:var(--brown); border-radius:999px; padding:8px 18px; font:inherit; cursor:pointer; }
+  .chip.on { background:var(--brown); color:#fff; border-color:var(--brown); }
+  .grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; }
+  @media (min-width:700px) { .grid { grid-template-columns:repeat(3,minmax(0,1fr)); gap:18px; } .slide { aspect-ratio:16/6; } }
+  @media (min-width:1150px) { .grid { grid-template-columns:repeat(4,minmax(0,1fr)); gap:20px; } .pic { height:170px; } .slide { aspect-ratio:16/5; } }
+  @media (min-width:1450px) { .grid { grid-template-columns:repeat(5,minmax(0,1fr)); } }
+  .search { width:100%; max-width:520px; padding:13px 16px; border:1.5px solid var(--line); border-radius:999px; font:inherit; background:#fff; color:var(--brown); margin-bottom:14px; }
+  .search:focus { outline:3px solid var(--gold); outline-offset:1px; }
+  .more { display:none; margin:22px auto 0; background:var(--brown); color:#fff; border:0; border-radius:999px; padding:13px 30px; font:inherit; font-weight:700; cursor:pointer; }
+  .card { background:#fff; border:1px solid var(--line); border-radius:14px; overflow:hidden; display:flex; flex-direction:column; }
+  .pic { height:130px; display:flex; align-items:center; justify-content:center; color:#fff;
+         font-family:"DM Serif Display",Georgia,serif; font-size:42px; }
+  .pic img { width:100%; height:100%; object-fit:cover; }
+  .info { padding:12px; display:flex; flex-direction:column; gap:4px; flex:1; }
+  .info b.name { font-size:16px; }
+  .muted { color:var(--muted); font-size:13px; }
+  .add { margin-top:auto; border:2px solid var(--brown); background:none; color:var(--brown); border-radius:999px; padding:9px; font:inherit; font-weight:700; cursor:pointer; }
+  .add:active { background:var(--gold); border-color:var(--gold); }
+  .msg { color:var(--muted); padding:20px 0; }
+
+  .ads { max-width:1200px; margin:0 auto; padding:28px 20px 0; display:none; }
+  .ads h2 { margin-bottom:12px; }
+  .slider { display:flex; overflow-x:auto; scroll-snap-type:x mandatory; gap:12px; scrollbar-width:none; border-radius:14px; }
+  .slider::-webkit-scrollbar { display:none; }
+  .slide { flex:0 0 100%; scroll-snap-align:start; position:relative; aspect-ratio:16/7; background:var(--line); border-radius:14px; overflow:hidden; display:block; color:#fff; }
+  .slide img { width:100%; height:100%; object-fit:cover; display:block; }
+  .cap { position:absolute; inset:auto 0 0 0; padding:26px 16px 14px; background:linear-gradient(transparent, rgba(0,0,0,.7)); }
+  .cap b { display:block; font-size:18px; }
+  .tag { position:absolute; top:10px; left:10px; background:rgba(255,255,255,.9); color:var(--brown); font-size:12px; font-weight:700; padding:3px 10px; border-radius:999px; }
+  .dots { display:flex; justify-content:center; gap:8px; margin-top:10px; }
+  .dot { width:9px; height:9px; border-radius:50%; background:var(--line); }
+  .dot.on { background:var(--brown); }
+  footer { background:var(--brown); color:#FFF4DC; padding:28px 20px; }
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">Emmahenmic <small>The Great Business Ent</small></div>
+  <div style="display:flex;align-items:center;gap:14px"><a id="who" href="login.html" style="font-weight:500">Login</a><button class="cart" id="cartBtn">Cart (<span id="count">0</span>)</button></div>
+</header>
+
+<section class="hero">
+  <h1>Beauty you can trust</h1>
+  <p>Skincare, makeup, hair and fragrance, all in one shop. Order today and pick up at the Trade Fair or get it delivered.</p>
+  <a class="btn" href="#shop">Shop now</a>
+</section>
+
+<section class="ads" id="ads">
+  <h2>New arrivals</h2>
+  <div class="slider" id="slider"></div>
+  <div class="dots" id="dots"></div>
+</section>
+
+<main id="shop">
+  <h2>Our products</h2>
+  <input class="search" id="search" type="search" placeholder="Search products..." aria-label="Search products">
+  <div class="chips" id="chips"></div>
+  <div class="grid" id="grid"></div>
+  <div class="msg" id="msg">Loading products...</div>
+  <button class="more" id="more" type="button">Show more products</button>
+</main>
+
+<footer>Trade Fair Complex, Lagos</footer>
+
+<script>
+  const COLORS = { 'Makeup':'#A63A4A', 'Skincare':'#B8742F', 'Hair care':'#4E6B3A', 'Fragrance':'#B0507A' };
+  const naira = (n) => '₦' + Number(n).toLocaleString('en-NG');
+  const el = (tag, cls, text) => {
+    const e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text !== undefined) e.textContent = text;
+    return e;
+  };
+
+  // The cart lives in the browser (localStorage): { productId: quantity }
+  const getCart = () => { try { return JSON.parse(localStorage.getItem('ehm_cart')) || {}; } catch (e) { return {}; } };
+  const saveCart = (c) => localStorage.setItem('ehm_cart', JSON.stringify(c));
+  const showCount = () => { document.getElementById('count').textContent = Object.values(getCart()).reduce((a, b) => a + b, 0); };
+  document.getElementById('cartBtn').onclick = () => { location.href = 'cart.html'; };
+  showCount();
+  let current = 'All';
+
+  // 1. Ask the server for the data (this is the frontend talking to the backend)
+  async function getJSON(url) {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error('Server answered ' + res.status);
+    return res.json();
+  }
+
+  // 2. Draw the category buttons
+  async function loadCategories() {
+    const cats = await getJSON('/api/categories');
+    const box = document.getElementById('chips');
+    box.innerHTML = '';
+    ['All', ...cats.map(c => c.name)].forEach(name => {
+      const b = el('button', 'chip' + (name === current ? ' on' : ''), name);
+      b.onclick = () => { current = name; loadCategories(); loadProducts(); };
+      box.appendChild(b);
+    });
+  }
+
+  // 3. Draw the product cards. They come in small groups of 24 (with the search words and category applied).
+  const PAGE = 24;
+  const SEED = Math.floor(Math.random() * 2147483646) + 1;   // a new number on every visit gives a new shuffled order
+  let offset = 0, query = '', reqId = 0;
+  async function loadProducts(reset = true) {
+    const msg = document.getElementById('msg'), grid = document.getElementById('grid'), more = document.getElementById('more');
+    const mine = ++reqId;                      // if you type quickly, only the newest answer is used
+    if (reset) { offset = 0; grid.innerHTML = ''; }
+    try {
+      const url = '/api/products?limit=' + PAGE + '&offset=' + offset +
+        (current === 'All' ? '' : '&category=' + encodeURIComponent(current)) + (query ? '&q=' + encodeURIComponent(query) : '&seed=' + SEED);
+      const data = await getJSON(url);
+      if (mine !== reqId) return;
+      data.products.forEach(p => {
+        const card = el('div', 'card');
+        const pic = el('div', 'pic');
+        if (p.photo_url) { const img = el('img'); img.src = p.photo_url; img.alt = p.name; pic.appendChild(img); }
+        else { pic.style.background = COLORS[p.category] || '#5A4636'; pic.textContent = p.name[0]; }
+        const info = el('div', 'info');
+        info.appendChild(el('span', 'muted', p.category || ''));
+        info.appendChild(el('b', 'name', p.name));
+        info.appendChild(el('span', 'muted', 'Per ' + p.unit));
+        info.appendChild(el('b', '', naira(p.base_price)));
+        const add = el('button', 'add', 'Add to cart');
+        add.onclick = () => {
+          const c = getCart();
+          c[p.id] = c[p.id] ? c[p.id] + 1 : (p.min_order || 1); // the first tap adds the minimum order
+          saveCart(c); showCount();
+          add.textContent = 'Added'; setTimeout(() => { add.textContent = 'Add to cart'; }, 900);
+        };
+        info.appendChild(add);
+        card.append(pic, info);
+        grid.appendChild(card);
+      });
+      offset += data.products.length;
+      msg.textContent = data.total === 0 ? (query ? 'No products match "' + query + '".' : 'No products in this category yet.')
+                                          : 'Showing ' + offset + ' of ' + data.total + ' products';
+      more.style.display = offset < data.total ? 'block' : 'none';
+    } catch (err) {
+      msg.textContent = 'Could not load products. Is the server running? (' + err.message + ')';
+    }
+  }
+  document.getElementById('more').onclick = () => loadProducts(false);
+  let searchTimer = null;
+  document.getElementById('search').addEventListener('input', (e) => {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(() => { query = e.target.value.trim(); loadProducts(true); }, 300);
+  });
+
+  loadCategories().then(loadProducts).catch(err => {
+    document.getElementById('msg').textContent = 'Could not load: ' + err.message;
+  });
+
+  // Show the customer's name if they are logged in
+  (async () => {
+    const token = localStorage.getItem('ehm_token');
+    if (!token) return;
+    try {
+      const res = await fetch('/api/me', { headers: { Authorization: 'Bearer ' + token } });
+      if (!res.ok) { localStorage.removeItem('ehm_token'); return; }
+      const me = await res.json();
+      const who = document.getElementById('who');
+      who.textContent = 'Hi, ' + me.full_name.split(' ')[0] + ' (Logout)';
+      who.href = '#';
+      who.onclick = (e) => { e.preventDefault(); localStorage.removeItem('ehm_token'); location.reload(); };
+      const mine = document.createElement('a');
+      mine.href = 'my-orders.html'; mine.textContent = 'My orders'; mine.style.fontWeight = '500';
+      who.parentNode.insertBefore(mine, who);
+      if (me.role === 'owner' || me.role === 'staff') {
+        const dash = document.createElement('a');
+        dash.href = 'admin.html'; dash.textContent = 'Owner area'; dash.style.fontWeight = '700';
+        who.parentNode.insertBefore(dash, who);
+      }
+    } catch (e) {}
+  })();
+
+  // Adverts slider: shows what the owner uploaded; expired adverts do not come back from the server
+  (async () => {
+    try {
+      const ads = await getJSON('/api/promotions');
+      if (!ads.length) return;
+      document.getElementById('ads').style.display = 'block';
+      const slider = document.getElementById('slider'), dots = document.getElementById('dots');
+      ads.forEach((a) => {
+        const slide = el(a.link_url && /^https?:\/\//i.test(a.link_url) ? 'a' : 'div', 'slide');
+        if (slide.tagName === 'A') { slide.href = a.link_url; slide.target = '_blank'; slide.rel = 'noopener'; }
+        const img = el('img'); img.src = a.image_url; img.alt = a.title;
+        const tag = el('span', 'tag', 'Sponsored');
+        const cap = el('div', 'cap'); cap.appendChild(el('b', '', a.title));
+        const line = [a.company, a.tagline].filter(Boolean).join(' · ');
+        if (line) cap.appendChild(el('span', '', line));
+        slide.append(img, tag, cap); slider.appendChild(slide);
+        dots.appendChild(el('span', 'dot'));
+      });
+      const setDot = () => {
+        const i = Math.round(slider.scrollLeft / slider.clientWidth);
+        [...dots.children].forEach((d, n) => d.classList.toggle('on', n === i));
+      };
+      slider.addEventListener('scroll', setDot); setDot();
+      let paused = false;
+      slider.addEventListener('pointerdown', () => paused = true);
+      slider.addEventListener('mouseenter', () => paused = true);
+      slider.addEventListener('mouseleave', () => paused = false);
+      setInterval(() => {
+        if (paused || ads.length < 2) return;
+        const i = Math.round(slider.scrollLeft / slider.clientWidth);
+        slider.scrollTo({ left: ((i + 1) % ads.length) * slider.clientWidth, behavior: 'smooth' });
+      }, 5000);
+    } catch (e) {}
+  })();
+</script>
+<script src="site-nav.js"></script>
+<script src="chat-widget.js"></script>
+<script src="dev.js"></script>
+</body>
+</html>

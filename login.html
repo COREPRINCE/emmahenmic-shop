@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Login | Emmahenmic</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@400;500;700&display=swap">
+<style>
+  :root { --brown:#3B2318; --gold:#F2A900; --bg:#FFFDF8; --line:#EADFCE; --muted:#6B5648; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:"DM Sans",Arial,sans-serif; background:var(--bg); color:var(--brown); }
+  header { padding:16px 20px; border-bottom:1px solid var(--line); }
+  header a { font-family:"DM Serif Display",Georgia,serif; font-size:24px; color:var(--brown); text-decoration:none; }
+  main { max-width:420px; margin:0 auto; padding:32px 20px 60px; }
+  h1 { font-family:"DM Serif Display",Georgia,serif; font-weight:400; font-size:34px; margin:0 0 16px; }
+  .tabs { display:flex; gap:8px; margin-bottom:20px; }
+  .tab { flex:1; border:1.5px solid var(--line); background:#fff; color:var(--brown); border-radius:999px; padding:10px; font:inherit; font-weight:700; cursor:pointer; }
+  .tab.on { background:var(--brown); color:#fff; border-color:var(--brown); }
+  label { display:block; font-weight:500; margin:14px 0 6px; }
+  input { width:100%; padding:13px 14px; border:1.5px solid var(--line); border-radius:10px; font:inherit; background:#fff; color:var(--brown); }
+  input:focus { outline:3px solid var(--gold); outline-offset:1px; }
+  .go { width:100%; margin-top:22px; background:var(--gold); color:#2A1A00; border:0; border-radius:999px; padding:14px; font:inherit; font-weight:700; cursor:pointer; }
+  .err { color:#B3261E; margin-top:14px; min-height:20px; }
+  .only-signup { display:none; }
+  .signup .only-signup { display:block; }
+</style>
+</head>
+<body>
+<header><a href="/">Emmahenmic</a></header>
+<main id="box">
+  <h1 id="title">Welcome back</h1>
+  <div class="tabs">
+    <button class="tab on" id="tLogin" type="button">Login</button>
+    <button class="tab" id="tSignup" type="button">Sign up</button>
+  </div>
+  <div class="only-signup">
+    <label for="name">Full name</label><input id="name" autocomplete="name">
+    <label for="phone">Phone number</label><input id="phone" type="tel" autocomplete="tel">
+  </div>
+  <label for="email">Email</label><input id="email" type="email" autocomplete="email">
+  <label for="password">Password</label><input id="password" type="password" autocomplete="current-password" placeholder="At least 8 characters">
+  <button class="go" id="go" type="button">Login</button>
+  <div class="err" id="err" role="alert"></div>
+</main>
+<script>
+  let mode = 'login';
+  const $ = (id) => document.getElementById(id);
+  function setMode(m) {
+    mode = m;
+    $('box').classList.toggle('signup', m === 'signup');
+    $('tLogin').classList.toggle('on', m === 'login');
+    $('tSignup').classList.toggle('on', m === 'signup');
+    $('go').textContent = m === 'login' ? 'Login' : 'Create my account';
+    $('title').textContent = m === 'login' ? 'Welcome back' : 'Create your account';
+    $('err').textContent = '';
+  }
+  $('tLogin').onclick = () => setMode('login');
+  $('tSignup').onclick = () => setMode('signup');
+
+  $('go').onclick = async () => {
+    $('err').textContent = '';
+    const body = { email: $('email').value, password: $('password').value };
+    if (mode === 'signup') { body.full_name = $('name').value; body.phone = $('phone').value; }
+    try {
+      const res = await fetch(mode === 'login' ? '/api/login' : '/api/signup', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+      });
+      const data = await res.json();
+      if (!res.ok) { $('err').textContent = data.error || 'Something went wrong'; return; }
+      localStorage.setItem('ehm_token', data.token);   // the browser keeps the token
+      const next = new URLSearchParams(location.search).get('next');
+      window.location.href = (next && /^\/[^\/]/.test(next)) ? next : '/';
+    } catch (e) { $('err').textContent = 'Could not reach the server. Is it running?'; }
+  };
+</script>
+<script src="dev.js"></script>
+</body>
+</html>

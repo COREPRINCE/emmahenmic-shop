@@ -1,0 +1,2 @@
+// Old name kept so the owner pages do not need changing: it just loads the one menu used by every page.
+(() => { const s = document.createElement('script'); s.src = 'site-nav.js'; document.head.appendChild(s); })();

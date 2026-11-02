@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Your cart | Emmahenmic</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@400;500;700&display=swap">
+<style>
+  :root { --brown:#3B2318; --gold:#F2A900; --bg:#FFFDF8; --line:#EADFCE; --muted:#6B5648; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:"DM Sans",Arial,sans-serif; background:var(--bg); color:var(--brown); }
+  header { display:flex; justify-content:space-between; align-items:center; padding:16px 20px; border-bottom:1px solid var(--line); }
+  header a { color:var(--brown); text-decoration:none; font-weight:500; }
+  .logo { font-family:"DM Serif Display",Georgia,serif; font-size:24px; }
+  main { max-width:640px; margin:0 auto; padding:24px 20px 60px; }
+  h1,h2 { font-family:"DM Serif Display",Georgia,serif; font-weight:400; margin:0 0 12px; }
+  h1 { font-size:34px; } h2 { font-size:24px; margin-top:30px; }
+  .line { display:flex; gap:12px; align-items:center; background:#fff; border:1px solid var(--line); border-radius:12px; padding:10px; margin-bottom:10px; }
+  .thumb { width:56px; height:56px; border-radius:8px; object-fit:cover; background:var(--line); flex:none; }
+  .grow { flex:1; min-width:0; }
+  .hint { color:var(--muted); font-size:13px; }
+  .bad { color:#B3261E; font-size:13px; font-weight:500; }
+  .qty { display:flex; align-items:center; gap:6px; margin-top:6px; }
+  .qty button { width:34px; height:34px; border-radius:50%; border:1.5px solid var(--brown); background:none; color:var(--brown); font-size:18px; cursor:pointer; }
+  .qty input { width:64px; text-align:center; padding:8px; border:1.5px solid var(--line); border-radius:8px; font:inherit; }
+  .rm { background:none; border:0; color:var(--muted); text-decoration:underline; cursor:pointer; font:inherit; }
+  .sum { display:flex; justify-content:space-between; padding:8px 0; }
+  .sum.total { font-weight:700; font-size:20px; border-top:1px solid var(--line); margin-top:6px; padding-top:12px; }
+  label { display:block; font-weight:500; margin:14px 0 6px; }
+  input.f, select, textarea { width:100%; padding:12px 14px; border:1.5px solid var(--line); border-radius:10px; font:inherit; background:#fff; color:var(--brown); }
+  .go { width:100%; margin-top:22px; background:var(--gold); color:#2A1A00; border:0; border-radius:999px; padding:14px; font:inherit; font-weight:700; cursor:pointer; }
+  .msg { margin-top:14px; min-height:20px; font-weight:700; color:#B3261E; }
+  .go:disabled { opacity:.6; cursor:wait; }
+</style>
+</head>
+<body>
+<header><a class="logo" href="/">Emmahenmic</a><a href="/">Keep shopping</a></header>
+<main>
+  <h1>Your cart</h1>
+  <div id="lines"></div>
+  <div id="empty" class="hint" style="display:none">Your cart is empty. <a href="/">Go and pick something</a>.</div>
+
+  <div id="checkout" style="display:none">
+    <div class="sum"><span>Items</span><span id="sub">₦0</span></div>
+    <div class="sum"><span>Delivery</span><span id="fee">Choose your area</span></div>
+    <div class="sum total"><span>Total</span><span id="total">₦0</span></div>
+
+    <h2>Delivery details</h2>
+    <label for="zone">Delivery area</label><select id="zone"></select>
+    <label for="dname">Name of person receiving</label><input class="f" id="dname" autocomplete="name">
+    <label for="dphone">Phone number</label><input class="f" id="dphone" type="tel" autocomplete="tel">
+    <label for="daddr">Full address</label><textarea id="daddr" rows="3" autocomplete="street-address"></textarea>
+    <p class="hint">You pay by bank transfer after placing the order. The bank details show on the next page.</p>
+    <button class="go" id="place" type="button">Place order</button>
+    <div class="msg" id="msg" role="alert"></div>
+  </div>
+</main>
+<script>
+  const $ = (id) => document.getElementById(id);
+  const naira = (n) => '₦' + Number(n).toLocaleString('en-NG');
+  const getCart = () => { try { return JSON.parse(localStorage.getItem('ehm_cart')) || {}; } catch (e) { return {}; } };
+  const saveCart = (c) => localStorage.setItem('ehm_cart', JSON.stringify(c));
+  const token = localStorage.getItem('ehm_token');
+  let zones = [], priced = null;
+
+  async function render() {
+    const cart = getCart();
+    const ids = Object.keys(cart);
+    $('lines').innerHTML = '';
+    if (!ids.length) { $('empty').style.display = 'block'; $('checkout').style.display = 'none'; return; }
+    $('empty').style.display = 'none'; $('checkout').style.display = 'block';
+    const res = await fetch('/api/cart/price', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ items: ids.map(id => ({ product_id: Number(id), quantity: cart[id] })) }) });
+    priced = await res.json();
+    priced.lines.forEach(l => {
+      const row = document.createElement('div'); row.className = 'line';
+      let pic;
+      if (l.photo_url) { pic = document.createElement('img'); pic.src = l.photo_url; pic.alt = l.name; pic.className = 'thumb'; }
+      else { pic = document.createElement('div'); pic.className = 'thumb'; }
+      const g = document.createElement('div'); g.className = 'grow';
+      const nm = document.createElement('b'); nm.textContent = l.name;
+      const pr = document.createElement('div'); pr.className = 'hint';
+      pr.textContent = naira(l.unit_price) + ' per ' + (l.unit || 'unit') + ' · ' + naira(l.line_total);
+      g.append(nm, pr);
+      if (l.problem) { const p = document.createElement('div'); p.className = 'bad'; p.textContent = l.problem; g.appendChild(p); }
+      const q = document.createElement('div'); q.className = 'qty';
+      const minus = document.createElement('button'); minus.type = 'button'; minus.textContent = '−'; minus.setAttribute('aria-label', 'Less');
+      const inp = document.createElement('input'); inp.value = l.quantity; inp.inputMode = 'numeric';
+      const plus = document.createElement('button'); plus.type = 'button'; plus.textContent = '+'; plus.setAttribute('aria-label', 'More');
+      const set = (n) => { const c = getCart(); if (n < 1) delete c[l.product_id]; else c[l.product_id] = n; saveCart(c); render(); };
+      minus.onclick = () => set(l.quantity - 1);
+      plus.onclick = () => set(l.quantity + 1);
+      inp.onchange = () => set(Number(String(inp.value).replace(/\D/g, '')) || 1);
+      const rm = document.createElement('button'); rm.type = 'button'; rm.className = 'rm'; rm.textContent = 'Remove';
+      rm.onclick = () => set(0);
+      q.append(minus, inp, plus, rm); g.appendChild(q);
+      row.append(pic, g); $('lines').appendChild(row);
+    });
+    totals();
+  }
+
+  function totals() {
+    const z = zones.find(x => String(x.id) === $('zone').value);
+    const fee = z ? z.fee : 0;
+    $('sub').textContent = naira(priced.subtotal);
+    $('fee').textContent = z ? naira(fee) : 'Choose your area';
+    $('total').textContent = naira(priced.subtotal + fee);
+  }
+
+  async function start() {
+    zones = await (await fetch('/api/zones')).json();
+    $('zone').innerHTML = '<option value="">Choose...</option>';
+    zones.forEach(z => { const o = document.createElement('option'); o.value = z.id; o.textContent = z.name + ' (' + naira(z.fee) + ')'; $('zone').appendChild(o); });
+    $('zone').onchange = () => priced && totals();
+    if (token) {
+      const r = await fetch('/api/me', { headers: { Authorization: 'Bearer ' + token } });
+      if (r.ok) { const me = await r.json(); $('dname').value = me.full_name || ''; $('dphone').value = me.phone || ''; }
+    }
+    render();
+  }
+
+  const show = (text, good) => { $('msg').textContent = text; $('msg').style.color = good ? '#1E7B3A' : '#B3261E'; };
+  $('place').onclick = async () => {
+    if ($('place').disabled) return;              // stops a double tap from placing the order twice
+    show('', true);
+    if (!token) { location.href = '/login.html?next=/cart.html'; return; }
+    const cart = getCart();
+    const body = { items: Object.keys(cart).map(id => ({ product_id: Number(id), quantity: cart[id] })), zone_id: Number($('zone').value),
+      delivery_name: $('dname').value, delivery_phone: $('dphone').value, delivery_address: $('daddr').value };
+    $('place').disabled = true; $('place').textContent = 'Placing your order...';
+    try {
+      const res = await fetch('/api/orders', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token }, body: JSON.stringify(body) });
+      const d = await res.json();
+      if (!res.ok) {
+        show('Order NOT placed: ' + (d.error || 'Something went wrong'), false);
+        if (res.status === 401) localStorage.removeItem('ehm_token');
+        $('place').disabled = false; $('place').textContent = 'Place order';
+        $('msg').scrollIntoView({ behavior: 'smooth', block: 'center' });
+        render(); return;
+      }
+      localStorage.removeItem('ehm_cart');
+      show('Order saved! Your order number is ' + d.order_number + '. Taking you to your order...', true);
+      $('msg').scrollIntoView({ behavior: 'smooth', block: 'center' });
+      setTimeout(() => { location.href = '/order.html?new=1&n=' + encodeURIComponent(d.order_number); }, 900);
+    } catch (e) {
+      show('Order NOT placed: could not reach the server. Is it running?', false);
+      $('place').disabled = false; $('place').textContent = 'Place order';
+    }
+  };
+  start();
+</script>
+<script src="site-nav.js"></script>
+<script src="chat-widget.js"></script>
+<script src="dev.js"></script>
+</body>
+</html>

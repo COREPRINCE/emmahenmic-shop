@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Orders | Emmahenmic</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@400;500;700&display=swap">
+<style>
+  :root { --brown:#3B2318; --gold:#F2A900; --bg:#FFFDF8; --line:#EADFCE; --muted:#6B5648; --red:#B3261E; --green:#1E7B3A; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:"DM Sans",Arial,sans-serif; background:var(--bg); color:var(--brown); }
+  header { display:flex; justify-content:space-between; align-items:center; padding:16px 20px; border-bottom:1px solid var(--line); }
+  header a { color:var(--brown); text-decoration:none; font-weight:500; }
+  .logo { font-family:"DM Serif Display",Georgia,serif; font-size:24px; }
+  main { max-width:760px; margin:0 auto; padding:24px 20px 60px; }
+  h1,h2 { font-family:"DM Serif Display",Georgia,serif; font-weight:400; margin:0 0 12px; }
+  h1 { font-size:34px; } h2 { font-size:22px; margin-top:26px; }
+  input.s { width:100%; padding:12px 14px; border:1.5px solid var(--line); border-radius:10px; font:inherit; background:#fff; color:var(--brown); margin-bottom:12px; }
+  input.s:focus { outline:3px solid var(--gold); outline-offset:1px; }
+  .chips { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:16px; }
+  .chip { border:1.5px solid var(--line); background:#fff; color:var(--brown); border-radius:999px; padding:7px 16px; font:inherit; cursor:pointer; }
+  .chip.on { background:var(--brown); color:#fff; border-color:var(--brown); }
+  .card { background:#fff; border:1px solid var(--line); border-radius:12px; padding:14px; margin-bottom:10px; cursor:pointer; display:flex; justify-content:space-between; gap:12px; align-items:center; }
+  .card:hover { border-color:var(--brown); }
+  .hint { color:var(--muted); font-size:13px; }
+  .tag { display:inline-block; border-radius:999px; padding:3px 12px; font-size:12px; font-weight:700; background:var(--line); color:var(--brown); }
+  .tag.dark { background:var(--brown); color:#fff; }
+  .tag.gold { background:var(--gold); color:#2A1A00; }
+  .tag.green { background:#DDF2E3; color:var(--green); }
+  .tag.red { background:#FBE0DE; color:var(--red); }
+  .box { background:#fff; border:1px solid var(--line); border-radius:12px; padding:14px; }
+  .sum { display:flex; justify-content:space-between; gap:12px; padding:5px 0; }
+  .sum.total { font-weight:700; border-top:1px solid var(--line); margin-top:6px; padding-top:10px; }
+  .btn { background:var(--gold); color:#2A1A00; border:0; border-radius:999px; padding:11px 22px; font:inherit; font-weight:700; cursor:pointer; margin:4px 6px 4px 0; }
+  .btn.dark { background:var(--brown); color:#fff; }
+  .btn.out { background:none; border:2px solid var(--brown); color:var(--brown); }
+  .btn.red { background:none; border:2px solid var(--red); color:var(--red); }
+  .btn:disabled { opacity:.45; cursor:not-allowed; }
+  .back { background:none; border:0; color:var(--brown); font:inherit; font-weight:700; cursor:pointer; padding:0; margin-bottom:12px; }
+  input.f { padding:10px 12px; border:1.5px solid var(--line); border-radius:10px; font:inherit; width:100%; margin:4px 0; }
+  .msg { min-height:20px; margin:10px 0; font-weight:500; }
+  .bad { color:var(--red); } .good { color:var(--green); }
+  .step { border-left:3px solid var(--line); padding:2px 0 10px 12px; margin-left:4px; }
+  img.rc { max-width:100%; max-height:300px; border-radius:10px; border:1px solid var(--line); cursor:zoom-in; }
+</style>
+</head>
+<body>
+<header><span class="logo">Emmahenmic</span><a href="admin.html">Owner area</a></header>
+<main>
+  <div id="listView">
+    <h1 id="pageTitle">Orders</h1>
+    <input class="s" id="q" placeholder="Search by order number, name or phone" aria-label="Search orders">
+    <div class="chips" id="chips"></div>
+    <div id="list"></div>
+  </div>
+  <div id="detailView" style="display:none"></div>
+</main>
+<script>
+  const token = localStorage.getItem('ehm_token');
+  const auth = { Authorization: 'Bearer ' + token };
+  const $ = (id) => document.getElementById(id);
+  const naira = (n) => '₦' + Number(n).toLocaleString('en-NG');
+  const when = (s) => new Date(String(s).replace(' ', 'T') + 'Z').toLocaleString('en-NG', { dateStyle: 'medium', timeStyle: 'short' });
+  const STATUS = { placed: 'Placed', packaging: 'Packing', ready: 'Ready', out_for_delivery: 'Out for delivery', delivered: 'Delivered', cancelled: 'Cancelled' };
+  const PAYWORD = { waiting: ['Awaiting payment', ''], receipt_uploaded: ['Check receipt', 'gold'], confirmed: ['Paid', 'green'], failed: ['Receipt rejected', 'red'] };
+  const ACTION = { packaging: 'Start packing', ready: 'Mark ready', out_for_delivery: 'Send out for delivery', delivered: 'Mark delivered', cancelled: 'Cancel order' };
+  let filter = '', timer = null, openNumber = null;
+  const PAY_FILTER = new URLSearchParams(location.search).get('pay') === 'check' ? 'receipt_uploaded' : '';
+  if (PAY_FILTER) $('pageTitle').textContent = 'Payment approvals';
+
+  const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; };
+  const sum = (a, b, cls) => { const d = el('div', 'sum ' + (cls || '')); d.append(el('span', '', a), el('b', '', b)); return d; };
+  async function api(url, method, body) {
+    const res = await fetch(url, { method: method || 'GET', headers: body ? { ...auth, 'Content-Type': 'application/json' } : auth, body: body ? JSON.stringify(body) : undefined });
+    const data = await res.json().catch(() => ({}));
+    return { ok: res.ok, data };
+  }
+
+  async function start() {
+    if (!token) { location.href = '/login.html'; return; }
+    const me = await api('/api/me');
+    if (!me.ok || !['owner', 'staff'].includes(me.data.role)) { location.href = '/'; return; }
+    drawChips(); loadList();
+    const want = new URLSearchParams(location.search).get('order');
+    if (want) openOrder(want);
+    $('q').addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(loadList, 300); });
+  }
+
+  function drawChips() {
+    $('chips').innerHTML = '';
+    [['', 'All'], ...Object.entries(STATUS)].forEach(([k, label]) => {
+      const b = el('button', 'chip' + (filter === k ? ' on' : ''), label); b.type = 'button';
+      b.onclick = () => { filter = k; drawChips(); loadList(); };
+      $('chips').appendChild(b);
+    });
+  }
+
+  async function loadList() {
+    const r = await api('/api/admin/orders?status=' + encodeURIComponent(filter) + '&q=' + encodeURIComponent($('q').value) + '&pay=' + PAY_FILTER);
+    $('list').innerHTML = '';
+    if (!r.ok) { $('list').appendChild(el('p', 'bad', r.data.error || 'Could not load orders')); return; }
+    if (!r.data.length) { $('list').appendChild(el('p', 'hint', 'No orders here yet.')); return; }
+    r.data.forEach(o => {
+      const c = el('div', 'card'); c.tabIndex = 0;
+      const left = el('div');
+      left.append(el('b', '', o.order_number + ' · ' + o.delivery_name), el('div', 'hint', when(o.created_at) + ' · ' + naira(o.total)));
+      const right = el('div'); right.style.textAlign = 'right';
+      const pw = PAYWORD[o.payment_status] || ['', ''];
+      right.append(el('span', 'tag dark', STATUS[o.status] || o.status), document.createElement('br'), el('span', 'tag ' + pw[1], pw[0]));
+      c.append(left, right);
+      const go = () => openOrder(o.order_number);
+      c.onclick = go; c.onkeydown = (e) => { if (e.key === 'Enter') go(); };
+      $('list').appendChild(c);
+    });
+  }
+
+  async function openOrder(number) {
+    openNumber = number;
+    const r = await api('/api/admin/orders/' + encodeURIComponent(number));
+    const v = $('detailView');
+    $('listView').style.display = 'none'; v.style.display = 'block'; v.innerHTML = '';
+    const back = el('button', 'back', '← All orders'); back.type = 'button';
+    back.onclick = () => { v.style.display = 'none'; $('listView').style.display = 'block'; loadList(); };
+    v.appendChild(back);
+    if (!r.ok) { v.appendChild(el('p', 'bad', r.data.error || 'Could not load this order')); return; }
+    const { order: o, items, payment, history, next, role } = r.data;
+    const msg = el('div', 'msg'); msg.setAttribute('role', 'alert');
+    const say = (t, good) => { msg.textContent = t; msg.className = 'msg ' + (good ? 'good' : 'bad'); };
+
+    v.append(el('h1', '', o.order_number), el('span', 'tag dark', STATUS[o.status] || o.status), msg);
+
+    // payment
+    v.appendChild(el('h2', '', 'Payment'));
+    const pb = el('div', 'box'); const pw = PAYWORD[payment.status] || [payment.status, ''];
+    pb.append(sum('Amount to receive', naira(payment.amount)), sum('Method', 'Bank transfer'), sum('Status', pw[0]));
+    if (payment.has_receipt) {
+      const rr = await fetch('/api/orders/' + encodeURIComponent(number) + '/receipt', { headers: auth });
+      if (rr.ok) {
+        const url = URL.createObjectURL(await rr.blob());
+        const img = el('img', 'rc'); img.src = url; img.alt = 'Payment receipt'; img.onclick = () => window.open(url, '_blank');
+        pb.append(el('div', 'hint', 'Receipt from the customer (tap to enlarge):'), img);
+      }
+    } else if (payment.status !== 'confirmed') pb.appendChild(el('div', 'hint', 'No receipt uploaded yet.'));
+    if (role === 'owner' && o.status !== 'cancelled') {
+      if (payment.status !== 'confirmed') {
+        const ok = el('button', 'btn', 'Confirm payment'); ok.type = 'button';
+        ok.onclick = async () => {
+          if (!confirm('Confirm that ' + naira(payment.amount) + ' has reached your account?')) return;
+          const x = await api('/api/admin/orders/' + number + '/payment', 'POST', { action: 'confirm' });
+          x.ok ? openOrder(number) : say(x.data.error, false);
+        };
+        pb.appendChild(ok);
+      }
+      if (payment.status === 'receipt_uploaded') {
+        const no = el('button', 'btn red', 'Reject receipt'); no.type = 'button';
+        no.onclick = async () => {
+          if (!confirm('Reject this receipt? The customer can upload another one.')) return;
+          const x = await api('/api/admin/orders/' + number + '/payment', 'POST', { action: 'reject' });
+          x.ok ? openOrder(number) : say(x.data.error, false);
+        };
+        pb.appendChild(no);
+      }
+    } else if (role === 'staff' && payment.status !== 'confirmed') pb.appendChild(el('div', 'hint', 'The owner confirms payments.'));
+    v.appendChild(pb);
+
+    // update the order
+    if (next.length) {
+      v.appendChild(el('h2', '', 'Update this order'));
+      const ub = el('div', 'box');
+      const paid = payment.status === 'confirmed';
+      const dn = el('input', 'f'); dn.placeholder = 'Driver or rider name'; dn.setAttribute('aria-label', 'Driver name');
+      const dp = el('input', 'f'); dp.placeholder = 'Driver phone'; dp.type = 'tel'; dp.setAttribute('aria-label', 'Driver phone');
+      if (next.includes('out_for_delivery')) ub.append(dn, dp);
+      next.forEach(to => {
+        if (to === 'cancelled' && role !== 'owner') return;
+        const b = el('button', 'btn ' + (to === 'cancelled' ? 'red' : 'dark'), ACTION[to]); b.type = 'button';
+        if (to !== 'cancelled' && !paid) b.disabled = true;
+        b.onclick = async () => {
+          if (to === 'cancelled' && !confirm('Cancel this order? The stock goes back to the shop.')) return;
+          const x = await api('/api/admin/orders/' + number + '/status', 'POST', { status: to, driver_name: dn.value, driver_phone: dp.value });
+          x.ok ? openOrder(number) : say(x.data.error, false);
+        };
+        ub.appendChild(b);
+      });
+      if (!paid) ub.appendChild(el('div', 'hint', 'Confirm the payment before packing or sending this order.'));
+      v.appendChild(ub);
+    }
+
+    // items + delivery
+    v.appendChild(el('h2', '', 'Items'));
+    const ib = el('div', 'box');
+    items.forEach(i => ib.appendChild(sum(i.quantity + ' × ' + i.name + ' (' + naira(i.unit_price) + ' per ' + i.unit + ')', naira(i.quantity * i.unit_price))));
+    ib.append(sum('Items', naira(o.subtotal)), sum('Delivery' + (o.zone_name ? ' (' + o.zone_name + ')' : ''), naira(o.delivery_fee)), sum('Total', naira(o.total), 'total'));
+    v.appendChild(ib);
+
+    v.appendChild(el('h2', '', 'Delivery'));
+    const db = el('div', 'box');
+    db.append(sum('Name', o.delivery_name), sum('Phone', o.delivery_phone), sum('Address', o.delivery_address));
+    if (o.driver_name) db.append(sum('Driver', o.driver_name + ', ' + o.driver_phone));
+    db.appendChild(sum('Customer account', (o.customer_name || '') + (o.customer_email ? ' · ' + o.customer_email : '')));
+    v.appendChild(db);
+
+    v.appendChild(el('h2', '', 'History'));
+    const hb = el('div', 'box');
+    history.forEach(h => {
+      const s = el('div', 'step');
+      s.append(el('b', '', STATUS[h.status] || h.status), el('div', 'hint', when(h.created_at) + (h.by_name ? ' · ' + h.by_name : '') + (h.note ? ' · ' + h.note : '')));
+      hb.appendChild(s);
+    });
+    v.appendChild(hb);
+  }
+  start();
+</script>
+<script src="admin-nav.js"></script>
+</body>
+</html>

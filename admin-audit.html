@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Activity log | Emmahenmic</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@400;500;700&display=swap">
+<style>
+  :root { --brown:#3B2318; --gold:#F2A900; --bg:#FFFDF8; --line:#EADFCE; --muted:#6B5648; --red:#B3261E; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:"DM Sans",Arial,sans-serif; background:var(--bg); color:var(--brown); }
+  header { display:flex; justify-content:space-between; align-items:center; padding:16px 20px; border-bottom:1px solid var(--line); }
+  header a { color:var(--brown); text-decoration:none; font-weight:500; }
+  .logo { font-family:"DM Serif Display",Georgia,serif; font-size:24px; }
+  main { max-width:760px; margin:0 auto; padding:24px 20px 60px; }
+  h1 { font-family:"DM Serif Display",Georgia,serif; font-weight:400; font-size:34px; margin:0 0 8px; }
+  .hint { color:var(--muted); font-size:14px; }
+  input { width:100%; padding:12px 14px; border:1.5px solid var(--line); border-radius:10px; font:inherit; background:#fff; color:var(--brown); margin:14px 0; }
+  input:focus { outline:3px solid var(--gold); outline-offset:1px; }
+  .row { background:#fff; border:1px solid var(--line); border-radius:12px; padding:12px 14px; margin-bottom:8px; }
+  .row b { display:block; }
+  .meta { color:var(--muted); font-size:13px; margin-top:2px; }
+  .more { display:none; margin:16px auto 0; background:var(--brown); color:#fff; border:0; border-radius:999px; padding:12px 28px; font:inherit; font-weight:700; cursor:pointer; }
+</style>
+</head>
+<body>
+<header><span class="logo">Emmahenmic</span><a href="admin.html">Owner area</a></header>
+<main>
+  <h1>Activity log</h1>
+  <div class="hint">Who did what in the shop, newest first. This list can be read but never changed or deleted.</div>
+  <input id="q" type="search" placeholder="Search by name, action or order number" aria-label="Search the activity log">
+  <div id="list"></div>
+  <div class="hint" id="count"></div>
+  <button class="more" id="more" type="button">Show older activity</button>
+</main>
+<script>
+  const token = localStorage.getItem('ehm_token');
+  const auth = { Authorization: 'Bearer ' + token };
+  const $ = (id) => document.getElementById(id);
+  const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; };
+  const when = (s) => new Date(String(s).replace(' ', 'T') + 'Z').toLocaleString('en-NG', { dateStyle: 'medium', timeStyle: 'short' });
+  const WORDS = {
+    product_added: 'Added a product', product_changed: 'Changed a product', product_edited: 'Edited a product',
+    promotion_added: 'Published an advert', promotion_ended: 'Ended an advert',
+    receipt_uploaded: 'Receipt uploaded', payment_confirmed: 'Payment confirmed', payment_rejected: 'Receipt rejected',
+    order_packaging: 'Order: started packing', order_ready: 'Order: marked ready', order_out_for_delivery: 'Order: sent out for delivery',
+    order_delivered: 'Order: delivered', order_cancelled: 'Order: cancelled',
+    stock_updated: 'Updated stock',
+    zone_added: 'Added a delivery area', zone_changed: 'Changed a delivery area', zones_lagos_added: 'Added the Lagos areas',
+    staff_added: 'Created a staff account', staff_changed: 'Changed a staff account', staff_password_reset: 'Reset a staff password'
+  };
+  let offset = 0, query = '', reqId = 0, timer = null;
+
+  async function load(reset) {
+    const mine = ++reqId;
+    if (reset) { offset = 0; $('list').innerHTML = ''; }
+    try {
+      const res = await fetch('/api/admin/audit?limit=50&offset=' + offset + '&q=' + encodeURIComponent(query), { headers: auth });
+      const d = await res.json();
+      if (mine !== reqId) return;
+      if (!res.ok) { $('count').textContent = d.error || 'Could not load the log'; return; }
+      d.rows.forEach(r => {
+        const row = el('div', 'row');
+        row.append(el('b', '', WORDS[r.action] || r.action));
+        if (r.details) row.appendChild(el('div', '', r.details));
+        row.appendChild(el('div', 'meta', when(r.created_at) + ' · ' + (r.who ? r.who + ' (' + r.role + ')' : 'unknown')));
+        $('list').appendChild(row);
+      });
+      offset += d.rows.length;
+      $('count').textContent = d.total ? 'Showing ' + offset + ' of ' + d.total : 'Nothing found.';
+      $('more').style.display = offset < d.total ? 'block' : 'none';
+    } catch (e) { $('count').textContent = 'Could not reach the server. Is it running?'; }
+  }
+  $('more').onclick = () => load(false);
+  $('q').addEventListener('input', (e) => { clearTimeout(timer); timer = setTimeout(() => { query = e.target.value.trim(); load(true); }, 300); });
+
+  (async () => {
+    if (!token) { location.href = '/login.html'; return; }
+    const me = await fetch('/api/me', { headers: auth });
+    const m = await me.json();
+    if (!me.ok || m.role !== 'owner') { location.href = me.ok && m.role === 'staff' ? '/admin.html' : '/'; return; }
+    load(true);
+  })();
+</script>
+<script src="admin-nav.js"></script>
+</body>
+</html>

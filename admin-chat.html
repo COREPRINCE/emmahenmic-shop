@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Messages | Emmahenmic</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@400;500;700&display=swap">
+<style>
+  :root { --brown:#3B2318; --gold:#F2A900; --bg:#FFFDF8; --line:#EADFCE; --muted:#6B5648; --red:#B3261E; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:"DM Sans",Arial,sans-serif; background:var(--bg); color:var(--brown); }
+  header { display:flex; justify-content:space-between; align-items:center; padding:16px 20px; border-bottom:1px solid var(--line); }
+  header a { color:var(--brown); text-decoration:none; font-weight:500; }
+  .logo { font-family:"DM Serif Display",Georgia,serif; font-size:24px; }
+  main { max-width:680px; margin:0 auto; padding:24px 20px 60px; }
+  h1 { font-family:"DM Serif Display",Georgia,serif; font-weight:400; font-size:34px; margin:0 0 14px; }
+  .hint { color:var(--muted); font-size:13px; }
+  .card { display:flex; justify-content:space-between; gap:12px; align-items:center; background:#fff; border:1px solid var(--line); border-radius:12px; padding:14px; margin-bottom:10px; cursor:pointer; }
+  .card:hover { border-color:var(--brown); }
+  .card .t { min-width:0; }
+  .card .t div { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .dot { background:var(--red); color:#fff; border-radius:999px; padding:2px 10px; font-size:12px; font-weight:700; flex:none; }
+  .back { background:none; border:0; color:var(--brown); font:inherit; font-weight:700; cursor:pointer; padding:0; margin-bottom:12px; }
+  .log { background:#fff; border:1px solid var(--line); border-radius:12px; padding:12px; height:55vh; overflow-y:auto; display:flex; flex-direction:column; gap:8px; }
+  .m { max-width:80%; padding:9px 12px; border-radius:14px; font-size:14px; line-height:1.4; white-space:pre-wrap; word-wrap:break-word; }
+  .m small { display:block; font-size:11px; opacity:.7; margin-bottom:2px; }
+  .cust { align-self:flex-start; background:#fff; border:1px solid var(--line); }
+  .bot { align-self:flex-end; background:#EEE7DC; }
+  .team { align-self:flex-end; background:var(--brown); color:#fff; }
+  form { display:flex; gap:8px; margin-top:10px; }
+  input { flex:1; min-width:0; padding:12px 14px; border:1.5px solid var(--line); border-radius:999px; font:inherit; background:#fff; color:var(--brown); }
+  input:focus { outline:3px solid var(--gold); outline-offset:1px; }
+  button.send { background:var(--gold); color:#2A1A00; border:0; border-radius:999px; padding:12px 24px; font:inherit; font-weight:700; cursor:pointer; }
+  .msg { color:var(--red); font-weight:700; min-height:20px; margin-top:8px; }
+</style>
+</head>
+<body>
+<header><span class="logo">Emmahenmic</span><a href="admin.html">Owner area</a></header>
+<main>
+  <div id="listView">
+    <h1>Messages</h1>
+    <div class="hint" style="margin-bottom:12px">Customers write to you from the "Chat with us" button on the shop. Tap a conversation to read it and reply.</div>
+    <div id="list"></div>
+  </div>
+  <div id="threadView" style="display:none">
+    <button class="back" id="back" type="button">← All messages</button>
+    <h1 id="who" style="font-size:28px"></h1>
+    <div class="hint" id="phone"></div>
+    <div class="log" id="log" role="log" aria-live="polite"></div>
+    <form id="form"><input id="text" maxlength="1000" placeholder="Type your reply..." aria-label="Your reply"><button class="send" type="submit">Send</button></form>
+    <div class="msg" id="msg" role="alert"></div>
+  </div>
+</main>
+<script>
+  const token = localStorage.getItem('ehm_token');
+  const auth = { Authorization: 'Bearer ' + token };
+  const $ = (id) => document.getElementById(id);
+  const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; };
+  const when = (s) => new Date(String(s).replace(' ', 'T') + 'Z').toLocaleString('en-NG', { dateStyle: 'medium', timeStyle: 'short' });
+  let current = null, timer = null;
+  async function api(url, method, body) {
+    const res = await fetch(url, { method: method || 'GET', headers: body ? { ...auth, 'Content-Type': 'application/json' } : auth, body: body ? JSON.stringify(body) : undefined });
+    return { ok: res.ok, data: await res.json().catch(() => ({})) };
+  }
+
+  async function loadList() {
+    const r = await api('/api/admin/chats');
+    $('list').innerHTML = '';
+    if (!r.ok) { $('list').appendChild(el('p', 'hint', r.data.error || 'Could not load messages')); return; }
+    if (!r.data.length) { $('list').appendChild(el('p', 'hint', 'No messages yet.')); return; }
+    r.data.forEach(c => {
+      const card = el('div', 'card'); card.tabIndex = 0;
+      const t = el('div', 't'); t.append(el('b', '', c.full_name), el('div', 'hint', c.last_message), el('div', 'hint', when(c.last_at)));
+      card.appendChild(t);
+      if (c.unread) card.appendChild(el('span', 'dot', c.unread + ' new'));
+      const go = () => openThread(c.id);
+      card.onclick = go; card.onkeydown = (e) => { if (e.key === 'Enter') go(); };
+      $('list').appendChild(card);
+    });
+  }
+
+  async function loadThread() {
+    const r = await api('/api/admin/chats/' + current);
+    if (!r.ok) { $('msg').textContent = r.data.error || 'Could not load this chat'; return; }
+    $('who').textContent = r.data.customer.full_name;
+    $('phone').textContent = r.data.customer.phone ? 'Phone: ' + r.data.customer.phone : '';
+    const log = $('log'); const near = log.scrollHeight - log.scrollTop - log.clientHeight < 80;
+    log.innerHTML = '';
+    r.data.messages.forEach(m => {
+      const b = el('div', 'm ' + (m.sender === 'customer' ? 'cust' : m.sender === 'staff' ? 'team' : 'bot'));
+      b.appendChild(el('small', '', (m.sender === 'customer' ? r.data.customer.full_name : m.sender === 'staff' ? (m.staff_name || 'Shop team') : 'Automatic reply') + ' · ' + when(m.created_at)));
+      b.append(document.createTextNode(m.message)); log.appendChild(b);
+    });
+    if (near) log.scrollTop = log.scrollHeight;
+  }
+  async function openThread(id) {
+    current = id; $('listView').style.display = 'none'; $('threadView').style.display = 'block'; $('msg').textContent = '';
+    await loadThread(); $('log').scrollTop = $('log').scrollHeight; $('text').focus();
+    clearInterval(timer); timer = setInterval(() => { if (!document.hidden) loadThread(); }, 5000);
+  }
+  $('back').onclick = () => { clearInterval(timer); current = null; $('threadView').style.display = 'none'; $('listView').style.display = 'block'; loadList(); timer = setInterval(() => { if (!document.hidden && !current) loadList(); }, 10000); };
+  $('form').onsubmit = async (e) => {
+    e.preventDefault();
+    const text = $('text').value.trim(); if (!text) return;
+    const r = await api('/api/admin/chats/' + current, 'POST', { message: text });
+    if (r.ok) { $('text').value = ''; $('msg').textContent = ''; await loadThread(); $('log').scrollTop = $('log').scrollHeight; }
+    else $('msg').textContent = r.data.error || 'Could not send';
+  };
+
+  (async () => {
+    if (!token) { location.href = '/login.html'; return; }
+    const me = await api('/api/me');
+    if (!me.ok || !['owner', 'staff'].includes(me.data.role)) { location.href = '/'; return; }
+    loadList(); timer = setInterval(() => { if (!document.hidden && !current) loadList(); }, 10000);
+  })();
+</script>
+<script src="admin-nav.js"></script>
+</body>
+</html>
